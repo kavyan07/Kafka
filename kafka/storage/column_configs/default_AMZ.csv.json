@@ -1,0 +1,32 @@
+{
+    "report_id": "AMZ.csv",
+    "user_id": "default",
+    "config": {
+        "widths": [],
+        "order": [
+            "AMZ_Name_s",
+            "AMZ_PRICE_f",
+            "AMZ_PRICE_i",
+            "AMZ_SKU_s",
+            "Brand_Name_s",
+            "Date_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Stock_s"
+        ],
+        "selected": [
+            "AMZ_Name_s",
+            "AMZ_PRICE_f",
+            "AMZ_PRICE_i",
+            "AMZ_SKU_s",
+            "Brand_Name_s",
+            "Date_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Stock_s"
+        ]
+    },
+    "updated_at": "2026-03-19T12:30:37+00:00"
+}

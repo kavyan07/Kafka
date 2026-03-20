@@ -66,9 +66,9 @@ function autocast(string $value): mixed
 
     $cleanValue = str_replace(',', '', $value);
 
-    if (ctype_digit($cleanValue)) return (int)$cleanValue;
-    if (preg_match('/^-\d+$/', $cleanValue)) return (int)$cleanValue;
-    if (is_numeric($cleanValue) && str_contains($cleanValue, '.')) return (float)$cleanValue;
+    if (ctype_digit($cleanValue)) return (float)$cleanValue;
+    if (preg_match('/^-\d+$/', $cleanValue)) return (float)$cleanValue;
+    if (is_numeric($cleanValue)) return (float)$cleanValue;
     if (strtolower($value) === 'true')  return true;
     if (strtolower($value) === 'false') return false;
 

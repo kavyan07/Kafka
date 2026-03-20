@@ -1,0 +1,39 @@
+{
+  "responseHeader":{
+    "status":0,
+    "QTime":5,
+    "params":{
+      "q":"source_file_s:WM.csv",
+      "rows":"1",
+      "wt":"json"
+    }
+  },
+  "response":{
+    "numFound":76351,
+    "start":0,
+    "numFoundExact":true,
+    "docs":[{
+      "product_id_i":8480,
+      "parent_sku_s":"qb95512",
+      "Product_Name_s":"ACME Estrella Youth Chest in White",
+      "Price_f":945.01,
+      "Type_s":"simple",
+      "Brand_Name_s":"ACME",
+      "WM_SKU_i":30246,
+      "WM_URL_s":"https://www.abc.com/ip/Acme-Furniture-Estrella-Kids-5-Drawer-Chest/54886639",
+      "WM_PRICE_f":638.24,
+      "WM_Name_s":"Acme Furniture Estrella Chest, White",
+      "Quantity_i":1,
+      "Date_s":"03/11/2026 04:05",
+      "Stock_s":"In Stock",
+      "Last_Price_Change_s":"10/18/2025 04:55",
+      "Extracted_URL_s":"https://www.abc.com/ip/Acme-Furniture-Estrella-Kids-5-Drawer-Chest/54886639",
+      "Image_URL_s":"https://www.abc.com/seo/Acme-Furniture-Estrella-Chest-White_33d5a3ba-c6a0-4caf-8252-c2f0ed8170f5.e13bb263c7d53c0fda7fcc30b6c3b3bb.jpeg",
+      "source_file_s":"WM.csv",
+      "ingested_at_dt":"2026-03-19T04:53:02Z",
+      "id":"doc_e7a33c47adf2f369a61ca7cd30865ff4",
+      "_version_":1860065009289134083,
+      "_root_":"doc_e7a33c47adf2f369a61ca7cd30865ff4"
+    }]
+  }
+}

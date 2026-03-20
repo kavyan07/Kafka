@@ -1,52 +1,70 @@
 import React, { useEffect } from 'react'
-import { useStore } from './store'
-import Sidebar from './components/Sidebar'
-import TopBar from './components/TopBar'
-import DataTable from './components/DataTable'
+import { useStore } from './store/index'
+import Sidebar    from './components/Sidebar'
+import TopBar     from './components/TopBar'
+import FilterBar  from './components/FilterBar'
+import DataTable  from './components/DataTable'
 import ChartPanel from './components/ChartPanel'
-import FilterBuilder from './components/FilterBuilder'
 import SavedViews from './components/SavedViews'
-import StatusBar from './components/StatusBar'
+import StatusBar  from './components/StatusBar'
 import './App.css'
+import './index.css'
 
 export default function App() {
-  const { fetchSchema, fetchViews, query, activeTab, sidebarOpen } = useStore()
+  const { fetchSchema, fetchStats, fetchViews, query, activeTab, sidebarOpen } = useStore()
 
   useEffect(() => {
-    fetchSchema()
-    fetchViews()
-    query()
+    ;(async () => {
+      await fetchSchema()
+      await fetchStats()
+      fetchViews()
+      query()
+    })()
+  }, [])
+
+  // Keyboard shortcut: Ctrl+Enter to fetch
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault()
+        useStore.getState().query()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
   }, [])
 
   return (
-    <div className="app-layout">
-      {/* Left Sidebar */}
+    <div className="app-container">
+
+      {/* ── Sidebar ───────────────────────────────── */}
       <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        {/* Logo strip */}
         <div className="sidebar-logo">
           <span className="logo-icon">◈</span>
-          <span className="logo-text">DataLens</span>
-        </div>
-        <Sidebar />
-      </aside>
-
-      {/* Main Content */}
-      <main className="main-content">
-        <TopBar />
-
-        <div className="content-area">
-          {/* Filters */}
-          <FilterBuilder />
-
-          {/* Results */}
-          <div className="results-panel animate-fade-in">
-            {activeTab === 'table' ? <DataTable /> : <ChartPanel />}
+          <div>
+            <div className="logo-text">DataLens</div>
+            <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 1 }}>
+              Reporting v6
+            </div>
           </div>
         </div>
 
+        {/* Column selector */}
+        <Sidebar />
+      </aside>
+
+      {/* ── Main content ───────────────────────────── */}
+      <main className="main-content">
+        <TopBar />
+        <FilterBar />
+        <div className="results-panel">
+          {activeTab === 'table' ? <DataTable /> : <ChartPanel />}
+        </div>
         <StatusBar />
       </main>
 
-      {/* Saved Views Drawer */}
+      {/* ── Drawers ────────────────────────────────── */}
       <SavedViews />
     </div>
   )

@@ -1,0 +1,44 @@
+{
+  "responseHeader":{
+    "status":0,
+    "QTime":100,
+    "params":{
+      "q":"source_file_s:AFA.csv",
+      "rows":"1",
+      "wt":"json"
+    }
+  },
+  "response":{
+    "numFound":70563,
+    "start":0,
+    "numFoundExact":true,
+    "docs":[{
+      "product_id_i":261739,
+      "parent_sku_s":"qb1316874",
+      "Product_Name_s":"Oyster Bay Harper End Table",
+      "Price_i":1199,
+      "Map_Price_i":1199,
+      "Type_s":"simple",
+      "Brand_Name_s":"Lexington",
+      "AFA_SKU_s":"714-953",
+      "AFA_URL_s":"https://www.abc.com/products/lexington-oyster-bay-harper-end-table-714-953?variant=51214282228012",
+      "AFA_PRICE_i":1199,
+      "AFA_Name_s":"Lexington - Oyster Bay Harper End Table - 714-953",
+      "Quantity_i":1,
+      "Date_s":"03/11/2026 05:29",
+      "Stock_s":"In Stock",
+      "Last_Price_Change_s":"03/06/2026 07:12",
+      "Extracted_URL_s":"https://www.abc.com/products/lexington-oyster-bay-harper-end-table-714-953",
+      "MAP_Violation_s":"Resolved",
+      "MAP_Violation_Date_Time_s":"11/27/2025 20:47",
+      "MAP_Violation_Screenshot_s":"https://www.abc.com/screenshots/map/957/5910/fef1696b-fc55-4aa8-b7ff-c608b91d0a6c.jpg",
+      "MAP_Violation_Screenshot_Date_Time_s":"11/27/2025 20:55",
+      "Image_URL_s":"https://www.abc.com/s/files/1/0927/4235/3196/files/lexington-oyster-bay-harper-end-table_media.01.jpg?v=1749987649",
+      "source_file_s":"AFA.csv",
+      "ingested_at_dt":"2026-03-19T04:51:17Z",
+      "id":"doc_17cabdef13c8d1b58ef285c79d82f5a6",
+      "_version_":1860064657276928000,
+      "_root_":"doc_17cabdef13c8d1b58ef285c79d82f5a6"
+    }]
+  }
+}

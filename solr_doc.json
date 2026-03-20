@@ -1,0 +1,44 @@
+{
+  "responseHeader":{
+    "status":0,
+    "QTime":0,
+    "params":{
+      "q":"*:*",
+      "rows":"1",
+      "wt":"json"
+    }
+  },
+  "response":{
+    "numFound":713148,
+    "start":0,
+    "numFoundExact":true,
+    "docs":[{
+      "product_id_i":91038,
+      "parent_sku_s":"qb1148675",
+      "Product_Name_s":"Trinell Brown One Drawer Night Stand",
+      "Price_f":200.65,
+      "Map_Price_f":220.68,
+      "Type_s":"simple",
+      "Brand_Name_s":"Signature Design by Ashley",
+      "AF_SKU_s":"b446-91",
+      "AF_URL_s":"https://www.abc.com/p/trinell_nightstand/B446-91.html",
+      "AF_PRICE_f":199.99,
+      "AF_Name_s":"Trinell Nightstand",
+      "Quantity_i":1,
+      "Date_s":"03/10/2026 19:55",
+      "Stock_s":"In Stock",
+      "Last_Price_Change_s":"09/26/2025 04:10",
+      "Extracted_URL_s":"https://www.abc.com/p/trinell_nightstand/B446-91.html",
+      "MAP_Violation_s":"Yes",
+      "MAP_Violation_Date_Time_s":"09/26/2025 04:10",
+      "MAP_Violation_Screenshot_s":"https://www.abc.com/screenshots/map/957/5851/57e43455-ac77-4667-bb09-870762413116.jpg",
+      "MAP_Violation_Screenshot_Date_Time_s":"09/26/2025 04:11",
+      "Image_URL_s":"https://www.abc.com/is/image/AshleyFurniture/B446-91-10X8-CROP?$AFHS-Grid-1X$",
+      "source_file_s":"AF.csv",
+      "ingested_at_dt":"2026-03-19T04:51:14Z",
+      "id":"doc_8cf6149bad97ba0d59614c91ce3fa59c",
+      "_version_":1860064641349058560,
+      "_root_":"doc_8cf6149bad97ba0d59614c91ce3fa59c"
+    }]
+  }
+}

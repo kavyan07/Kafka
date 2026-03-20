@@ -1,432 +1,550 @@
 <?php
-
 /**
- * Dynamic Reporting API
- * Routes: /api/query, /api/schema, /api/facets, /api/views, /api/produce
+ * Dynamic Reporting API - v7.1
+ * Fixed: multi-filter combining, number range, OR/AND logic, Run Query
  */
-
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use Monolog\Logger;
-use Monolog\Handler\StreamHandler;
-
-// ── CORS Headers ──────────────────────────────────────────────────────────────
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 
-// ── Config ────────────────────────────────────────────────────────────────────
-$solrUrl = getenv('SOLR_URL') ?: 'http://solr:8983/solr/csvcore';
+$solrUrl     = getenv('SOLR_URL')     ?: 'http://solr:8983/solr/csvcore';
 $kafkaBroker = getenv('KAFKA_BROKER') ?: 'kafka:9092';
 
-$log = new Logger('api');
-$log->pushHandler(new StreamHandler('php://stderr', Logger::WARNING));
-
-// ── Router ────────────────────────────────────────────────────────────────────
 $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
-
-$uri = preg_replace('#^/api#', '', $uri);
+$uri    = preg_replace('#^/api#', '', $uri);
 
 switch (true) {
-    case $uri === '/query'  && $method === 'POST': handleQuery($solrUrl);  break;
-    case $uri === '/schema' && $method === 'GET':  handleSchema($solrUrl); break;
-    case $uri === '/facets' && $method === 'POST': handleFacets($solrUrl); break;
-    case $uri === '/views'  && $method === 'GET':  handleGetViews();       break;
-    case $uri === '/views'  && $method === 'POST': handleSaveView();       break;
-    case $uri === '/views'  && $method === 'DELETE': handleDeleteView();   break;
-    case $uri === '/produce'&& $method === 'POST': handleProduce($kafkaBroker); break;
-    case $uri === '/health' && $method === 'GET':  json(['status' => 'ok', 'time' => date('c')]); break;
-    default:
-        http_response_code(404);
-        json(['error' => 'Not found', 'path' => $uri]);
+    case $uri === '/query'           && $method === 'POST':   handleQuery($solrUrl);          break;
+    case $uri === '/schema'          && $method === 'GET':    handleSchema($solrUrl);         break;
+    case $uri === '/facets'          && $method === 'POST':   handleFacets($solrUrl);         break;
+    case $uri === '/views'           && $method === 'GET':    handleGetViews();               break;
+    case $uri === '/views'           && $method === 'POST':   handleSaveView();               break;
+    case $uri === '/views'           && $method === 'DELETE': handleDeleteView();             break;
+    case $uri === '/column-config'   && $method === 'POST':   handleSaveColumnConfig();       break;
+    case $uri === '/column-config'   && $method === 'GET':    handleGetColumnConfig();        break;
+    case $uri === '/produce'         && $method === 'POST':   handleProduce($kafkaBroker);    break;
+    case $uri === '/produce-status'  && $method === 'GET':    handleProduceStatus();          break;
+    case $uri === '/health'          && $method === 'GET':    handleHealth($solrUrl);         break;
+    case $uri === '/stats'           && $method === 'GET':    handleStats($solrUrl);          break;
+    default: http_response_code(404); json(['error' => 'Not found', 'path' => $uri]);
 }
 
-// ── Handlers ──────────────────────────────────────────────────────────────────
+// ── HEALTH ────────────────────────────────────────────────────────────────────
+function handleHealth(string $solrUrl): void {
+    $solrResp = @solrGet($solrUrl . '/admin/ping?wt=json');
+    $solrOk   = $solrResp && str_contains($solrResp, 'OK');
+    $cnt      = json_decode(solrGet($solrUrl . '/select?q=*:*&rows=0&wt=json'), true);
+    json(['status' => 'ok', 'solr' => $solrOk, 'records' => $cnt['response']['numFound'] ?? 0, 'time' => date('c')]);
+}
 
-function handleQuery(string $solrUrl): void
-{
-    $body = getBody();
+// ── STATS ─────────────────────────────────────────────────────────────────────
+function handleStats(string $solrUrl): void {
+    $resp  = json_decode(solrGet($solrUrl . '/select?q=*:*&rows=0&wt=json&facet=true&facet.field=source_file_s&facet.limit=200'), true);
+    $files = [];
+    $ff    = $resp['facet_counts']['facet_fields']['source_file_s'] ?? [];
+    for ($i = 0; $i < count($ff); $i += 2) {
+        if ($ff[$i] !== '' && $ff[$i + 1] > 0)
+            $files[] = ['file' => $ff[$i], 'count' => $ff[$i + 1]];
+    }
+    json(['total' => $resp['response']['numFound'] ?? 0, 'files' => $files]);
+}
 
-    $rows    = (int)($body['rows']   ?? 50);
-    $page    = (int)($body['page']   ?? 1);
-    $start   = ($page - 1) * $rows;
-    $sort    = $body['sort']   ?? 'score desc';
-    $q       = $body['q']     ?? '*:*';
-    $fields  = $body['fields'] ?? ['*'];
-    $filters = $body['filters'] ?? [];
-    $dateCompare = $body['dateCompare'] ?? null;
+// ── SCHEMA ────────────────────────────────────────────────────────────────────
+function handleSchema(string $solrUrl): void {
+    $SKIP = ['id', '_version_', '_root_', 'source_file_s', '_text_', 'ingested_at_dt'];
+    $file = $_GET['file'] ?? null;
 
-    // Build filter queries
-    $fqs = buildFilterQueries($filters);
+    if ($file) {
+        $enc  = rawurlencode($file);
+        $resp = json_decode(solrGet($solrUrl . '/select?q=source_file_s:' . $enc . '&rows=20&wt=json&indent=false'), true);
+    } else {
+        $resp = json_decode(solrGet($solrUrl . '/select?q=*:*&rows=20&wt=json&indent=false'), true);
+    }
+    $docs = $resp['response']['docs'] ?? [];
 
-    // Build Solr params
-    $params = [
-        'q'     => $q,
-        'rows'  => $rows,
-        'start' => $start,
-        'sort'  => $sort,
-        'fl'    => implode(',', $fields),
-        'wt'    => 'json',
-        'indent' => 'false',
-    ];
-
-    if (!empty($fqs)) {
-        $params['fq'] = $fqs;
+    $fieldMap = [];
+    foreach ($docs as $doc) {
+        foreach ($doc as $key => $val) {
+            if (str_starts_with($key, '_') || in_array($key, $SKIP)) continue;
+            if (!isset($fieldMap[$key])) {
+                $fieldMap[$key] = [
+                    'name'       => $key,
+                    'label'      => formatLabel($key),
+                    'type'       => inferType($key, $val),
+                    'sortable'   => true,
+                    'filterable' => true,
+                ];
+            }
+        }
     }
 
-    // Date compare: dual query
-    if ($dateCompare) {
-        $result = executeDateCompare($solrUrl, $params, $dateCompare);
-        json($result);
+    $schemaResp = json_decode(solrGet($solrUrl . '/schema/fields?wt=json'), true);
+    foreach (($schemaResp['fields'] ?? []) as $f) {
+        $n = $f['name'];
+        if (str_starts_with($n, '_') || in_array($n, $SKIP)) continue;
+        if (!isset($fieldMap[$n]))
+            $fieldMap[$n] = ['name' => $n, 'label' => formatLabel($n), 'type' => inferType($n, null), 'sortable' => true, 'filterable' => true];
+    }
+
+    $sorted = array_values($fieldMap);
+    usort($sorted, fn($a, $b) => (
+        (str_contains(strtolower($a['name']), 'url') || str_contains(strtolower($a['name']), 'link'))
+        <=> (str_contains(strtolower($b['name']), 'url') || str_contains(strtolower($b['name']), 'link'))
+    ) ?: strcmp($a['name'], $b['name']));
+
+    json(['fields' => $sorted, 'total' => count($sorted)]);
+}
+
+// ── QUERY ─────────────────────────────────────────────────────────────────────
+function handleQuery(string $solrUrl): void {
+    $body        = getBody();
+    $rows        = min((int)($body['rows'] ?? 50), 1000);
+    $page        = max(1, (int)($body['page'] ?? 1));
+    $start       = ($page - 1) * $rows;
+    $sort        = sanitizeSort($body['sort'] ?? 'score desc');
+    $q           = $body['q'] ?? '*:*';
+    $fields      = $body['fields'] ?? ['*'];
+    $filters     = $body['filters'] ?? [];
+    $filterGroups = $body['filterGroups'] ?? null;
+    $dateCompare = $body['dateCompare'] ?? null;
+
+    if (is_array($fields) && !in_array('*', $fields)) {
+        $fields = array_filter($fields, fn($f) => $f !== 'id' && $f !== '_version_');
+        if (empty($fields)) $fields = ['*'];
+    }
+
+    // ── Build fq array
+    // Strategy: source_file_s always goes as its own fq (best Solr caching)
+    // User filters are combined respecting AND/OR ops
+    $fqs = [];
+
+    if ($filterGroups) {
+        // Advanced nested mode
+        $groupFqs = buildNestedFilterGroups($filterGroups);
+        $fqs      = array_merge($fqs, $groupFqs);
+    } else {
+        // Flat mode — separate file filter from user filters
+        $fileFilter  = null;
+        $userFilters = [];
+        foreach ($filters as $f) {
+            if (($f['field'] ?? '') === 'source_file_s') {
+                $fileFilter = $f;
+            } else {
+                $userFilters[] = $f;
+            }
+        }
+
+        // File filter always as its own fq
+        if ($fileFilter) {
+            $fqs[] = 'source_file_s:' . ($fileFilter['value'] ?? '');
+        }
+
+        // User filters combined with AND/OR
+        if (!empty($userFilters)) {
+            $combined = buildCombinedUserFilters($userFilters);
+            if ($combined !== null) {
+                $fqs[] = $combined;
+            }
+        }
+    }
+
+    $params = [
+        'q'      => $q ?: '*:*',
+        'rows'   => $rows,
+        'start'  => $start,
+        'sort'   => $sort,
+        'fl'     => implode(',', (array)$fields),
+        'wt'     => 'json',
+        'indent' => 'false',
+    ];
+    if (!empty($fqs)) $params['fq'] = $fqs;
+
+    if ($dateCompare && !empty($dateCompare['from']) && !empty($dateCompare['to'])) {
+        json(executeDateCompare($solrUrl, $params, $dateCompare));
         return;
     }
 
     $response = solrRequest($solrUrl . '/select', $params);
-    $data = json_decode($response, true);
+    $data     = json_decode($response, true);
+
+    if (!$data) {
+        http_response_code(500);
+        json(['error' => 'Solr returned invalid response', 'raw' => substr($response, 0, 500)]);
+        return;
+    }
 
     json([
-        'total'    => $data['response']['numFound'] ?? 0,
-        'page'     => $page,
-        'rows'     => $rows,
-        'docs'     => $data['response']['docs'] ?? [],
-        'facets'   => $data['facet_counts'] ?? null,
-        'timing'   => $data['responseHeader']['QTime'] ?? null,
+        'total'   => $data['response']['numFound'] ?? 0,
+        'page'    => $page,
+        'rows'    => $rows,
+        'docs'    => $data['response']['docs']        ?? [],
+        'timing'  => $data['responseHeader']['QTime'] ?? null,
+        'debug_fq' => $fqs,  // helpful for debugging
     ]);
 }
 
-function handleSchema(string $solrUrl): void
-{
-    $response = solrGet($solrUrl . '/schema/fields?wt=json&indent=false');
-    $data = json_decode($response, true);
+// ── COMBINED USER FILTERS (AND/OR) ────────────────────────────────────────────
+// Builds a single Solr query string from flat filter array respecting op field
+// Example output: "(Price_f:[30 TO 40]) AND (Brand_Name_s:*Ashley*)"
+// Or with OR:    "(Price_f:[30 TO 40]) OR (Brand_Name_s:*Ashley*)"
+function buildCombinedUserFilters(array $filters): ?string {
+    if (empty($filters)) return null;
 
-    $fields = [];
-    foreach (($data['fields'] ?? []) as $field) {
-        $name = $field['name'];
-        if (str_starts_with($name, '_')) continue;
-
-        $type = inferType($name);
-        $fields[] = [
-            'name'       => $name,
-            'label'      => formatLabel($name),
-            'type'       => $type,
-            'sortable'   => true,
-            'filterable' => true,
-        ];
-    }
-
-    // Also get dynamic field examples by querying a sample doc
-    $sampleResp = solrGet($solrUrl . '/select?q=*:*&rows=1&wt=json');
-    $sampleData = json_decode($sampleResp, true);
-    $sampleDoc  = $sampleData['response']['docs'][0] ?? [];
-
-    $dynamicFields = [];
-    foreach ($sampleDoc as $key => $val) {
-        if (str_starts_with($key, '_') || $key === 'id') continue;
-        $dynamicFields[] = [
-            'name'       => $key,
-            'label'      => formatLabel($key),
-            'type'       => inferType($key),
-            'sortable'   => true,
-            'filterable' => true,
-        ];
-    }
-
-    json(['fields' => empty($fields) ? $dynamicFields : $fields]);
-}
-
-function handleFacets(string $solrUrl): void
-{
-    $body   = getBody();
-    $fields = $body['fields'] ?? [];
-    $limit  = (int)($body['limit'] ?? 50);
-    $prefix = $body['prefix'] ?? '';
-    $fqs    = buildFilterQueries($body['filters'] ?? []);
-
-    if (empty($fields)) {
-        json(['facets' => []]);
-        return;
-    }
-
-    $params = [
-        'q'           => '*:*',
-        'rows'        => 0,
-        'facet'       => 'true',
-        'facet.limit' => $limit,
-        'facet.mincount' => 1,
-        'wt'          => 'json',
-    ];
-
-    foreach ($fields as $f) {
-        $params['facet.field'][] = $f;
-    }
-
-    if ($prefix) {
-        $params['facet.prefix'] = $prefix;
-    }
-
-    if (!empty($fqs)) {
-        $params['fq'] = $fqs;
-    }
-
-    $response = solrRequest($solrUrl . '/select', $params);
-    $data = json_decode($response, true);
-
-    $facets = [];
-    $facetFields = $data['facet_counts']['facet_fields'] ?? [];
-    foreach ($facetFields as $field => $values) {
-        $facets[$field] = [];
-        for ($i = 0; $i < count($values); $i += 2) {
-            $facets[$field][] = [
-                'value' => $values[$i],
-                'count' => $values[$i + 1],
+    // Build clause for each filter
+    $clauses = [];
+    foreach ($filters as $f) {
+        $clause = buildSingleFilterClause($f);
+        if ($clause !== null) {
+            $clauses[] = [
+                'op'     => strtoupper(trim($f['op'] ?? 'AND')),
+                'clause' => $clause,
             ];
         }
     }
 
-    json(['facets' => $facets]);
-}
+    if (empty($clauses)) return null;
+    if (count($clauses) === 1) return $clauses[0]['clause'];
 
-function handleGetViews(): void
-{
-    $viewsFile = __DIR__ . '/../storage/views.json';
-    if (!file_exists($viewsFile)) {
-        json(['views' => []]);
-        return;
-    }
-    $views = json_decode(file_get_contents($viewsFile), true) ?? [];
-    json(['views' => $views]);
-}
-
-function handleSaveView(): void
-{
-    $body = getBody();
-    if (empty($body['name'])) {
-        http_response_code(400);
-        json(['error' => 'name required']);
-        return;
+    // Build the combined query string
+    // First clause has no operator prefix
+    // Subsequent clauses use their op
+    $result = '(' . $clauses[0]['clause'] . ')';
+    for ($i = 1; $i < count($clauses); $i++) {
+        $op      = $clauses[$i]['op'] === 'OR' ? 'OR' : 'AND';
+        $result .= ' ' . $op . ' (' . $clauses[$i]['clause'] . ')';
     }
 
-    $viewsFile = __DIR__ . '/../storage/views.json';
-    @mkdir(dirname($viewsFile), 0777, true);
-
-    $views = file_exists($viewsFile)
-        ? (json_decode(file_get_contents($viewsFile), true) ?? [])
-        : [];
-
-    $view = [
-        'id'         => 'view_' . uniqid(),
-        'name'       => $body['name'],
-        'columns'    => $body['columns'] ?? [],
-        'filters'    => $body['filters'] ?? [],
-        'sort'       => $body['sort'] ?? null,
-        'created_at' => date('c'),
-        'is_default' => $body['is_default'] ?? false,
-    ];
-
-    $views[] = $view;
-    file_put_contents($viewsFile, json_encode($views, JSON_PRETTY_PRINT));
-
-    json(['success' => true, 'view' => $view]);
+    return $result;
 }
 
-function handleDeleteView(): void
-{
-    $body = getBody();
-    $id   = $body['id'] ?? null;
-
-    if (!$id) {
-        http_response_code(400);
-        json(['error' => 'id required']);
-        return;
-    }
-
-    $viewsFile = __DIR__ . '/../storage/views.json';
-    $views = file_exists($viewsFile)
-        ? (json_decode(file_get_contents($viewsFile), true) ?? [])
-        : [];
-
-    $views = array_values(array_filter($views, fn($v) => $v['id'] !== $id));
-    file_put_contents($viewsFile, json_encode($views, JSON_PRETTY_PRINT));
-
-    json(['success' => true]);
-}
-
-function handleProduce(string $kafkaBroker): void
-{
-    $body = getBody();
-
-    // Trigger producer script async
-    $csvPath = '/app/csv';
-    $cmd = "php /app/producer.php $csvPath > /tmp/producer.log 2>&1 &";
-    exec($cmd);
-
-    json(['success' => true, 'message' => 'Producer triggered']);
-}
-
-// ── Query Builder ─────────────────────────────────────────────────────────────
-
-function buildFilterQueries(array $filters): array
-{
+// ── NESTED FILTER GROUPS ──────────────────────────────────────────────────────
+function buildNestedFilterGroups(array $groups): array {
     $fqs = [];
-    foreach ($filters as $filter) {
-        $fq = buildSingleFilter($filter);
-        if ($fq) $fqs[] = $fq;
+    foreach ($groups as $group) {
+        $conditions = $group['conditions'] ?? [];
+        $groupOp    = strtoupper($group['op'] ?? 'AND');
+        $clauses    = [];
+        foreach ($conditions as $c) {
+            $clause = buildSingleFilterClause($c);
+            if ($clause !== null) $clauses[] = '(' . $clause . ')';
+        }
+        if (!empty($clauses)) {
+            $fqs[] = implode(' ' . $groupOp . ' ', $clauses);
+        }
     }
     return $fqs;
 }
 
-function buildSingleFilter(array $filter): ?string
-{
-    $field = $filter['field'] ?? null;
-    $type  = $filter['type']  ?? 'text';
-    $value = $filter['value'] ?? null;
-    $op    = $filter['op']    ?? 'AND';
+// ── SINGLE FILTER CLAUSE ──────────────────────────────────────────────────────
+function buildSingleFilterClause(array $f): ?string {
+    $field = trim($f['field'] ?? '');
+    $type  = strtolower(trim($f['type']  ?? 'text'));
+    $value = $f['value'] ?? null;
+    if (!$field) return null;
 
-    if (!$field || $value === null || $value === '') return null;
+    // source_file_s: always plain term (handled separately, but just in case)
+    if ($field === 'source_file_s') {
+        if ($value === null || $value === '') return null;
+        return $field . ':' . $value;
+    }
 
     switch ($type) {
+        case 'term':
+            if ($value === null || $value === '') return null;
+            return "$field:$value";
+
+        case 'exact':
+            if ($value === null || $value === '') return null;
+            $v = (string)$value;
+            // Plain single token on _s fields — no quotes
+            if (str_ends_with($field, '_s') && !str_contains($v, ' ') && !str_contains($v, ':'))
+                return "$field:$v";
+            return $field . ':"' . addslashes($v) . '"';
+
         case 'range':
-            $min = $filter['min'] ?? '*';
-            $max = $filter['max'] ?? '*';
-            return "$field:[$min TO $max]";
+        case 'number_range':
+            // FIXED: properly handle numeric ranges
+            $min = $f['min'] ?? '';
+            $max = $f['max'] ?? '';
+            // Treat empty string, null, undefined as wildcard
+            $minVal = ($min !== '' && $min !== null) ? (string)$min : '*';
+            $maxVal = ($max !== '' && $max !== null) ? (string)$max : '*';
+            // Validate numeric
+            if ($minVal !== '*' && !is_numeric($minVal)) $minVal = '*';
+            if ($maxVal !== '*' && !is_numeric($maxVal)) $maxVal = '*';
+            if ($minVal === '*' && $maxVal === '*') return null;
+            return "$field:[$minVal TO $maxVal]";
 
         case 'date_range':
-            $from = $filter['from'] ?? '*';
-            $to   = $filter['to']   ?? '*';
-            // Convert to Solr date format
-            if ($from !== '*') $from = date('Y-m-d\TH:i:s\Z', strtotime($from));
-            if ($to   !== '*') $to   = date('Y-m-d\TH:i:s\Z', strtotime($to));
+            $from = $f['from'] ?? '';
+            $to   = $f['to']   ?? '';
+            if (!$from && !$to) return null;
+            $from = $from ? date('Y-m-d\TH:i:s\Z', strtotime($from)) : '*';
+            $to   = $to   ? date('Y-m-d\TH:i:s\Z', strtotime($to))   : '*';
             return "$field:[$from TO $to]";
 
         case 'multi_select':
-            $vals = is_array($value) ? $value : [$value];
-            $escaped = array_map(fn($v) => '"' . addslashes($v) . '"', $vals);
+            $vals = array_filter(is_array($value) ? $value : [$value]);
+            if (empty($vals)) return null;
+            $escaped = array_map(fn($v) => '"' . addslashes((string)$v) . '"', $vals);
             return "$field:(" . implode(' OR ', $escaped) . ")";
 
         case 'boolean':
-            return "$field:" . ($value ? 'true' : 'false');
+            if ($value === null || $value === '') return null;
+            $boolVal = ($value === true || $value === 'true' || $value === 1 || $value === '1') ? 'true' : 'false';
+            return "$field:$boolVal";
 
-        case 'nested':
-            // Recursive: (A AND B) OR C
-            $children = $filter['children'] ?? [];
-            $parts = array_filter(array_map('buildSingleFilter', $children));
-            if (empty($parts)) return null;
-            return '(' . implode(" $op ", $parts) . ')';
-
-        default: // text
-            return "$field:*" . addslashes($value) . '*';
+        default: // text wildcard — FIXED: handles dates and mixed strings
+            if ($value === null || $value === '') return null;
+            $v       = (string)$value;
+            // Escape Solr special chars (keep alphanumeric, spaces, slashes, colons for dates)
+            $escaped = preg_replace('/([+\-&|!(){}\[\]\^"~?\\\\])/', '\\\\$1', $v);
+            if ($escaped === '') return null;
+            // If it looks like a date/datetime, try exact match first
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}/', $escaped)) {
+                return "$field:*$escaped*";
+            }
+            return "$field:*$escaped*";
     }
 }
 
-function executeDateCompare(string $solrUrl, array $params, array $dateCompare): array
-{
-    // Current period query
-    $currentResult = json_decode(solrRequest($solrUrl . '/select', $params), true);
+// ── FACETS ────────────────────────────────────────────────────────────────────
+function handleFacets(string $solrUrl): void {
+    $body   = getBody();
+    $fields = (array)($body['fields'] ?? []);
+    $limit  = min((int)($body['limit'] ?? 50), 500);
+    $q      = $body['q'] ?? '*:*';
 
-    // Build compare period params
-    $compareParams = $params;
-    $compareField  = $dateCompare['field'] ?? 'date_dt';
-    $compareType   = $dateCompare['type']  ?? 'previous_period';
-    $from = strtotime($dateCompare['from'] ?? '-30 days');
-    $to   = strtotime($dateCompare['to']   ?? 'now');
-    $diff = $to - $from;
-
-    if ($compareType === 'previous_period') {
-        $cFrom = date('Y-m-d\TH:i:s\Z', $from - $diff);
-        $cTo   = date('Y-m-d\TH:i:s\Z', $from);
-    } else { // same_period_last_year
-        $cFrom = date('Y-m-d\TH:i:s\Z', strtotime('-1 year', $from));
-        $cTo   = date('Y-m-d\TH:i:s\Z', strtotime('-1 year', $to));
+    // Build context fqs for facets
+    $fqs = [];
+    $fileFilter  = null;
+    $userFilters = [];
+    foreach (($body['filters'] ?? []) as $f) {
+        if (($f['field'] ?? '') === 'source_file_s') {
+            $fileFilter = $f;
+        } else {
+            $userFilters[] = $f;
+        }
     }
+    if ($fileFilter) $fqs[] = 'source_file_s:' . ($fileFilter['value'] ?? '');
+    $combined = buildCombinedUserFilters($userFilters);
+    if ($combined !== null) $fqs[] = $combined;
 
-    $compareParams['fq'][] = "$compareField:[$cFrom TO $cTo]";
-    $compareResult = json_decode(solrRequest($solrUrl . '/select', $compareParams), true);
+    if (empty($fields)) { json(['facets' => []]); return; }
 
-    $currentTotal  = $currentResult['response']['numFound'] ?? 0;
-    $compareTotal  = $compareResult['response']['numFound'] ?? 0;
-    $absDiff       = $currentTotal - $compareTotal;
-    $pctChange     = $compareTotal > 0
-        ? round(($absDiff / $compareTotal) * 100, 2)
-        : null;
+    $params = [
+        'q'              => $q,
+        'rows'           => 0,
+        'facet'          => 'true',
+        'facet.limit'    => $limit,
+        'facet.mincount' => 1,
+        'wt'             => 'json',
+    ];
+    foreach ($fields as $f) $params['facet.field'][] = $f;
+    if (!empty($fqs)) $params['fq'] = $fqs;
+
+    $response = solrRequest($solrUrl . '/select', $params);
+    $data     = json_decode($response, true);
+
+    $facets = [];
+    foreach (($data['facet_counts']['facet_fields'] ?? []) as $field => $values) {
+        $facets[$field] = [];
+        for ($i = 0; $i < count($values); $i += 2) {
+            $facets[$field][] = ['value' => $values[$i], 'count' => $values[$i + 1]];
+        }
+    }
+    json(['facets' => $facets]);
+}
+
+// ── COLUMN CONFIG ─────────────────────────────────────────────────────────────
+function handleSaveColumnConfig(): void {
+    $body     = getBody();
+    $reportId = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $body['report_id'] ?? 'default');
+    $userId   = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $body['user_id']   ?? 'default');
+    $config   = $body['config'] ?? [];
+    $f        = __DIR__ . "/../storage/column_configs/{$userId}_{$reportId}.json";
+    @mkdir(dirname($f), 0777, true);
+    file_put_contents($f, json_encode(['report_id' => $reportId, 'user_id' => $userId, 'config' => $config, 'updated_at' => date('c')], JSON_PRETTY_PRINT));
+    json(['success' => true]);
+}
+
+function handleGetColumnConfig(): void {
+    $reportId = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $_GET['report_id'] ?? 'default');
+    $userId   = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $_GET['user_id']   ?? 'default');
+    $f        = __DIR__ . "/../storage/column_configs/{$userId}_{$reportId}.json";
+    if (!file_exists($f)) { json(['config' => []]); return; }
+    json(['config' => (json_decode(file_get_contents($f), true)['config'] ?? [])]);
+}
+
+// ── SAVED VIEWS ───────────────────────────────────────────────────────────────
+function handleGetViews(): void {
+    $f = __DIR__ . '/../storage/views.json';
+    json(['views' => file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : []]);
+}
+
+function handleSaveView(): void {
+    $body = getBody();
+    if (empty($body['name'])) { http_response_code(400); json(['error' => 'name required']); return; }
+    $f     = __DIR__ . '/../storage/views.json';
+    @mkdir(dirname($f), 0777, true);
+    $views = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $view  = [
+        'id'           => 'view_' . uniqid(),
+        'name'         => $body['name'],
+        'columns'      => $body['columns']      ?? [],
+        'filters'      => $body['filters']      ?? [],
+        'filterGroups' => $body['filterGroups'] ?? null,
+        'sort'         => $body['sort']         ?? null,
+        'columnWidths' => $body['columnWidths'] ?? [],
+        'created_at'   => date('c'),
+    ];
+    $views[] = $view;
+    file_put_contents($f, json_encode($views, JSON_PRETTY_PRINT));
+    json(['success' => true, 'view' => $view]);
+}
+
+function handleDeleteView(): void {
+    $body = getBody();
+    $id   = $body['id'] ?? null;
+    if (!$id) { http_response_code(400); json(['error' => 'id required']); return; }
+    $f     = __DIR__ . '/../storage/views.json';
+    $views = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $views = array_values(array_filter($views, fn($v) => $v['id'] !== $id));
+    file_put_contents($f, json_encode($views, JSON_PRETTY_PRINT));
+    json(['success' => true]);
+}
+
+// ── DATE COMPARE ──────────────────────────────────────────────────────────────
+function executeDateCompare(string $solrUrl, array $params, array $dc): array {
+    $field   = $dc['field'] ?? 'ingested_at_dt';
+    $type    = $dc['type']  ?? 'previous_period';
+    $from    = strtotime($dc['from'] ?? '-30 days');
+    $to      = strtotime($dc['to']   ?? 'now');
+    $diff    = $to - $from;
+
+    $curParams         = $params;
+    $curParams['fq'][] = "$field:[" . date('Y-m-d\TH:i:s\Z', $from) . " TO " . date('Y-m-d\TH:i:s\Z', $to) . "]";
+
+    $cmpFrom           = $type === 'previous_period' ? $from - $diff : strtotime('-1 year', $from);
+    $cmpTo             = $type === 'previous_period' ? $from         : strtotime('-1 year', $to);
+    $cmpParams         = $params;
+    $cmpParams['fq'][] = "$field:[" . date('Y-m-d\TH:i:s\Z', $cmpFrom) . " TO " . date('Y-m-d\TH:i:s\Z', $cmpTo) . "]";
+
+    $cur      = json_decode(solrRequest($solrUrl . '/select', $curParams), true);
+    $cmp      = json_decode(solrRequest($solrUrl . '/select', $cmpParams), true);
+    $curTotal = $cur['response']['numFound']  ?? 0;
+    $cmpTotal = $cmp['response']['numFound']  ?? 0;
+    $absDiff  = $curTotal - $cmpTotal;
+    $pct      = $cmpTotal > 0 ? round(($absDiff / $cmpTotal) * 100, 2) : null;
 
     return [
-        'current'    => ['total' => $currentTotal, 'docs' => $currentResult['response']['docs'] ?? []],
-        'compare'    => ['total' => $compareTotal,  'docs' => $compareResult['response']['docs'] ?? []],
-        'difference' => ['absolute' => $absDiff, 'percentage' => $pctChange],
+        'current'    => ['total' => $curTotal, 'docs' => $cur['response']['docs'] ?? [], 'period' => ['from' => $dc['from'], 'to' => $dc['to']]],
+        'compare'    => ['total' => $cmpTotal, 'docs' => $cmp['response']['docs'] ?? [], 'period' => ['from' => date('Y-m-d', $cmpFrom), 'to' => date('Y-m-d', $cmpTo)]],
+        'difference' => ['absolute' => $absDiff, 'percentage' => $pct],
+        'type'       => $type,
     ];
 }
 
-// ── Solr Helpers ──────────────────────────────────────────────────────────────
+// ── PRODUCE ───────────────────────────────────────────────────────────────────
+function handleProduce(string $kafkaBroker): void {
+    $body    = getBody();
+    $csvFile = $body['file'] ?? null;
+    $csvPath = '/app/csv';
+    $files   = glob($csvPath . '/*.csv');
 
-function solrRequest(string $url, array $params): string
-{
-    $ch = curl_init();
-    $postData = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+    if (empty($files)) { json(['success' => false, 'error' => 'No CSV files found in /app/csv']); return; }
+    if ($csvFile) {
+        $target = $csvPath . '/' . basename($csvFile);
+        if (!file_exists($target)) { json(['success' => false, 'error' => "File not found: $csvFile"]); return; }
+    }
 
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $postData,
-        CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
-    ]);
+    $pidFile = '/tmp/producer.pid';
+    $logFile = '/tmp/producer_' . date('YmdHis') . '.log';
 
-    $response = curl_exec($ch);
-    $err = curl_error($ch);
-    curl_close($ch);
+    if (file_exists($pidFile)) {
+        $pid = trim(file_get_contents($pidFile));
+        if ($pid && is_numeric($pid) && (file_exists("/proc/$pid") || exec("kill -0 $pid 2>/dev/null; echo \$?") === "0")) {
+            json(['success' => false, 'error' => "Producer already running (PID: $pid)"]); return;
+        }
+        unlink($pidFile);
+    }
 
-    if ($err) throw new RuntimeException("cURL error: $err");
-    return $response;
+    $targetPath = $csvFile ? "$csvPath/" . basename($csvFile) : $csvPath;
+    shell_exec("nohup php -d memory_limit=1G /app/producer.php '$targetPath' > $logFile 2>&1 & echo \$! > $pidFile");
+    usleep(800000);
+
+    $pid      = file_exists($pidFile) ? trim(file_get_contents($pidFile)) : null;
+    $logLines = file_exists($logFile) ? array_slice(file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES), -5) : [];
+
+    json(['success' => true, 'pid' => $pid, 'log_tail' => $logLines, 'csv_files' => array_map('basename', $files),
+        'message' => "Producer started (PID: $pid). Indexing " . ($csvFile ? basename($csvFile) : count($files) . ' files') . "."]);
 }
 
-function solrGet(string $url): string
-{
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL            => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-    ]);
-    $resp = curl_exec($ch);
-    curl_close($ch);
-    return $resp;
+function handleProduceStatus(): void {
+    $pidFile = '/tmp/producer.pid';
+    $pid     = file_exists($pidFile) ? trim(file_get_contents($pidFile)) : null;
+    $running = $pid && is_numeric($pid) && file_exists("/proc/$pid");
+    if (!$running && file_exists($pidFile)) unlink($pidFile);
+    $logFiles = glob('/tmp/producer_*.log'); rsort($logFiles);
+    $logLines = ($logFiles[0] ?? null) ? array_slice(file($logFiles[0], FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES), -10) : [];
+    json(['running' => $running, 'pid' => $pid, 'log' => $logLines]);
 }
 
-// ── Utils ─────────────────────────────────────────────────────────────────────
-
-function inferType(string $name): string
-{
-    if (str_ends_with($name, '_i')) return 'integer';
-    if (str_ends_with($name, '_f')) return 'float';
-    if (str_ends_with($name, '_b')) return 'boolean';
-    if (str_ends_with($name, '_dt')) return 'date';
-    if (str_ends_with($name, '_s')) return 'string';
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function inferType(string $name, mixed $val = null): string {
+    if (str_ends_with($name, '_i'))   return 'integer';
+    if (str_ends_with($name, '_f'))   return 'float';
+    if (str_ends_with($name, '_b'))   return 'boolean';
+    if (str_ends_with($name, '_dt'))  return 'date';
+    if (str_ends_with($name, '_s'))   return 'string';
+    if (str_ends_with($name, '_txt')) return 'text';
+    if (is_int($val))   return 'integer';
+    if (is_float($val)) return 'float';
+    if (is_bool($val))  return 'boolean';
     return 'string';
 }
 
-function formatLabel(string $name): string
-{
+function formatLabel(string $name): string {
     $name = preg_replace('/(_s|_i|_f|_b|_dt|_txt)$/', '', $name);
-    $name = str_replace('_', ' ', $name);
-    return ucwords($name);
+    return ucwords(str_replace('_', ' ', strtolower($name)));
 }
 
-function getBody(): array
-{
-    $raw = file_get_contents('php://input');
-    return json_decode($raw, true) ?? [];
+function sanitizeSort(string $sort): string {
+    return preg_match('/^[a-zA-Z0-9_]+ (asc|desc)$/', trim($sort)) ? trim($sort) : 'score desc';
 }
 
-function json(mixed $data): void
-{
-    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
+function solrRequest(string $url, array $params): string {
+    $parts = [];
+    foreach ($params as $key => $values) {
+        foreach ((array)$values as $value)
+            $parts[] = urlencode($key) . '=' . urlencode((string)$value);
+    }
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => implode('&', $parts),
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/x-www-form-urlencoded'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 60,
+        CURLOPT_CONNECTTIMEOUT => 10,
+    ]);
+    $r = curl_exec($ch); $err = curl_error($ch); curl_close($ch);
+    return $err ? json_encode(['error' => $err]) : ($r ?: '{}');
 }
+
+function solrGet(string $url): string {
+    $ch = curl_init();
+    curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15]);
+    $r = curl_exec($ch); curl_close($ch);
+    return $r ?: '{}';
+}
+
+function getBody(): array { return json_decode(file_get_contents('php://input'), true) ?? []; }
+function json(mixed $data): void { echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT); exit; }

@@ -1,0 +1,37 @@
+{
+    "report_id": "HS.csv",
+    "user_id": "default",
+    "config": {
+        "widths": [],
+        "order": [
+            "Date_s",
+            "Brand_Name_s",
+            "HS_Name_s",
+            "HS_PRICE_f",
+            "HS_SKU_i",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Quantity_i",
+            "Product_Name_s",
+            "Stock_s",
+            "Type_s",
+            "parent_sku_s",
+            "product_id_i",
+            "HS_SKU_s",
+            "Extracted_URL_s",
+            "HS_URL_s",
+            "Image_URL_s"
+        ],
+        "selected": [
+            "Date_s",
+            "HS_Name_s",
+            "HS_SKU_i",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "HS_PRICE_f"
+        ]
+    },
+    "updated_at": "2026-03-19T12:22:05+00:00"
+}

@@ -1,87 +1,128 @@
 import React, { useState, useEffect } from 'react'
-import { useStore } from '../store'
-import { Activity, Database, Zap } from 'lucide-react'
+import { useStore } from '../store/index'
+import { Activity, Database, CheckCircle, AlertCircle, RefreshCw, Cpu, Wifi } from 'lucide-react'
 
 export default function StatusBar() {
-  const { total, loading, results, filters } = useStore()
-  const [solrStatus, setSolrStatus] = useState('checking')
-  const [kafkaStatus, setKafkaStatus] = useState('checking')
+  const { total, loading, queryError } = useStore()
+  const [health, setHealth] = useState({ solr: null, kafka: null, records: 0 })
 
   useEffect(() => {
     const check = async () => {
       try {
         const res = await fetch('/api/health')
         if (res.ok) {
-          setSolrStatus('ok')
-          setKafkaStatus('ok')
+          const data = await res.json()
+          setHealth({ solr: data.solr === true, kafka: true, records: data.records || 0 })
+        } else {
+          setHealth({ solr: false, kafka: false, records: 0 })
         }
       } catch {
-        setSolrStatus('error')
-        setKafkaStatus('error')
+        setHealth({ solr: false, kafka: false, records: 0 })
       }
     }
     check()
-    const id = setInterval(check, 30000)
+    const id = setInterval(check, 10000)
     return () => clearInterval(id)
   }, [])
 
-  const dot = (status) => ({
-    width: 7, height: 7, borderRadius: '50%',
-    background: status === 'ok' ? 'var(--success)' : status === 'error' ? 'var(--error)' : 'var(--warning)',
-    animation: status === 'checking' ? 'pulse 1s ease infinite' : 'none',
-    flexShrink: 0,
-  })
-
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 20,
-      padding: '5px 20px',
-      background: 'var(--bg)',
-      borderTop: '1px solid var(--border)',
-      fontSize: 11,
-      color: 'var(--text3)',
-      flexShrink: 0,
-    }}>
-      {/* Status indicators */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={dot(solrStatus)} />
-        <span>Solr</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={dot(kafkaStatus)} />
-        <span>Kafka</span>
+    <div className="status-bar">
+
+      {/* ── Left: Infrastructure cluster indicators — each with unique color ── */}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', paddingRight: 16, borderRight: '1px solid var(--border)' }}>
+
+        {/* SOLR CORE — Cyan */}
+        <StatusPill
+          id="status-solr"
+          label="SOLR CORE"
+          ok={health.solr}
+          activeColor="var(--status-solr)"
+          icon={<Database size={11} />}
+        />
+
+        {/* KAFKA BUS — Purple */}
+        <StatusPill
+          id="status-kafka"
+          label="KAFKA BUS"
+          ok={health.kafka}
+          activeColor="var(--status-kafka)"
+          icon={<Wifi size={11} />}
+        />
       </div>
 
-      <div style={{ width: 1, height: 12, background: 'var(--border2)' }} />
+      {/* ── Middle: Metrics — each with unique color ── */}
+      <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
 
-      {/* Query info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <Database size={11} />
-        <span>{total.toLocaleString()} total records</span>
+        {/* STORAGE — Mint Green */}
+        <Metric
+          id="status-storage"
+          icon={<Database size={11} />}
+          label="STORAGE"
+          value={health.records.toLocaleString() + ' DOCS'}
+          color="var(--status-storage)"
+        />
+
+        {/* FOUND — Amber */}
+        <Metric
+          id="status-found"
+          icon={<Activity size={11} />}
+          label="FOUND"
+          value={total.toLocaleString()}
+          color="var(--status-found)"
+        />
+
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+            <RefreshCw size={11} className="animate-spin" style={{ animationDuration: '0.8s' }} />
+            <span>ANALYZING…</span>
+          </div>
+        )}
+
+        {queryError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--error)' }}>
+            <AlertCircle size={11} />
+            <span>CLUSTER ERROR</span>
+          </div>
+        )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-        <Activity size={11} />
-        <span>{results.length} in view</span>
-      </div>
-      {filters.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <Zap size={11} style={{ color: 'var(--accent)' }} />
-          <span style={{ color: 'var(--accent)' }}>{filters.filter(f => f.field).length} filters active</span>
-        </div>
-      )}
 
       <div style={{ flex: 1 }} />
 
-      {loading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
-          <span style={{ ...dot('checking'), background: 'var(--accent)' }} />
-          Querying...
-        </div>
-      )}
+      {/* ── Right: hints ── */}
+      <div id="keyboard-hint" style={{ color: 'var(--text-faint)', fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '.05em' }}>
+        [CTRL + ENTER] TO FETCH
+      </div>
 
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
-        DataLens v1.0 · CSV→Kafka→Solr→React
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--text-faint)', fontSize: 10, borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>
+        <Cpu size={10} />
+        DATA-LENS-V6.1-RELEASE
+      </div>
+    </div>
+  )
+}
+
+/* ── Status pill — each with own accent color ── */
+function StatusPill({ id, label, ok, activeColor, icon }) {
+  const color = ok === null ? 'var(--text-dim)' : ok ? activeColor : 'var(--error)'
+  return (
+    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{
+        width: 6, height: 6, borderRadius: 999, background: color,
+        boxShadow: ok ? `0 0 8px ${color}, 0 0 16px ${color}` : 'none',
+        animation: ok ? 'pulse 2.5s ease-in-out infinite' : 'none',
+      }} />
+      <span style={{ color, fontWeight: 700 }}>{label}</span>
+    </div>
+  )
+}
+
+/* ── Metric with icon, label, and colored value ── */
+function Metric({ id, icon, label, value, color }) {
+  return (
+    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ color: 'var(--text-faint)' }}>{icon}</span>
+      <span style={{ color: 'var(--text-dim)' }}>{label}</span>
+      <span style={{ color, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{value}</span>
     </div>
   )
 }

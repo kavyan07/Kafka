@@ -1,0 +1,28 @@
+{
+  "responseHeader":{
+    "status":0,
+    "QTime":5,
+    "params":{
+      "q":"*:*",
+      "facet.field":"source_file_s",
+      "rows":"0",
+      "facet":"true",
+      "wt":"json"
+    }
+  },
+  "response":{
+    "numFound":713148,
+    "start":0,
+    "numFoundExact":true,
+    "docs":[ ]
+  },
+  "facet_counts":{
+    "facet_queries":{ },
+    "facet_fields":{
+      "source_file_s":["WM.csv",76351,"CYM.csv",71058,"AFA.csv",70563,"HS.csv",68800,"ELM.csv",62429,"BO.csv",60052,"HGS.csv",51088,"EMS.csv",50999,"OVS.csv",42019,"AMZ.csv",33901,"BBB.csv",33683,"UNL.csv",25146,"BFD.csv",23778,"GSL.csv",19451,"FAS.csv",14286,"AF.csv",9494,"products.csv",50]
+    },
+    "facet_ranges":{ },
+    "facet_intervals":{ },
+    "facet_heatmaps":{ }
+  }
+}

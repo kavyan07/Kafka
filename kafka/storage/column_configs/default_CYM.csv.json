@@ -1,0 +1,34 @@
+{
+    "report_id": "CYM.csv",
+    "user_id": "default",
+    "config": {
+        "widths": {
+            "Cym Name": 199,
+            "Cym Price": 121
+        },
+        "order": [
+            "Brand_Name_s",
+            "CYM_PRICE_f",
+            "CYM_Name_s",
+            "CYM_SKU_i",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "Date_s"
+        ],
+        "selected": [
+            "Brand_Name_s",
+            "CYM_Name_s",
+            "CYM_PRICE_f",
+            "CYM_SKU_i",
+            "CYM_SKU_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "Date_s"
+        ]
+    },
+    "updated_at": "2026-03-19T11:25:04+00:00"
+}

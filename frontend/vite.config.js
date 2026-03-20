@@ -5,9 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 3000,
+    host: '0.0.0.0', // Allow container access
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://php:8000', // Use container name
         changeOrigin: true,
       }
     }

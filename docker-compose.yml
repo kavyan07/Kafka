@@ -227,13 +227,15 @@ services:
   #  REACT FRONTEND
   # ──────────────────────────────────────────
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    image: node:20-alpine
     container_name: frontend
-    restart: always
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Persistent modules inside container
     ports:
-      - "3000:80"
+      - "3000:3000"
+    command: ["sh", "-c", "npm install --no-fund && npm run dev -- --host"]
     depends_on:
       - php
 

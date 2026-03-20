@@ -1,339 +1,381 @@
-import React, { useState, useRef, useCallback } from 'react'
-import { useStore } from '../store'
-import { ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react'
+import { useStore } from '../store/index'
+import {
+  ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight,
+  HelpCircle, ExternalLink, Loader, Download, GripVertical,
+} from 'lucide-react'
+
+const INTERNAL = new Set(['id', '_version_', '_root_', 'source_file_s', 'ingested_at_dt', '_text_'])
+const PRICE_KEYS = ['price', 'cost', 'amount', 'value', 'fee', 'rate', 'msrp', 'map']
+const isPriceField = (f) => PRICE_KEYS.some(k => (f || '').toLowerCase().includes(k))
+const isStockField = (f) => (f || '').toLowerCase().includes('stock')
+
+// Virtual scrolling constants
+const ROW_HEIGHT = 38
+const BUFFER_ROWS = 10
 
 export default function DataTable() {
   const {
-    results, total, loading, page, rows, setPage,
-    selectedColumns, columnOrder, columnWidths, setColumnWidth,
-    sort, setSort, schema, compareResult,
+    results, total, loading, page, rows,
+    setPage, selectedColumns, columnOrder, columnWidths,
+    setColumnWidth, setColumnOrder, sort, setSort, schema, queryError,
+    saveColumnConfig,
   } = useStore()
 
-  const [resizing, setResizing] = useState(null)
-  const startX = useRef(0)
-  const startW = useRef(0)
-  const tableRef = useRef(null)
+  const [resizing,   setResizing]   = useState(null)
+  const [dragging,   setDragging]   = useState(null)
+  const [dragOver,   setDragOver]   = useState(null)
+  const [scrollTop,  setScrollTop]  = useState(0)
+  const [tableHeight, setTableHeight] = useState(400)
 
-  // Ordered visible columns
-  const orderedCols = columnOrder.length
-    ? columnOrder.filter(c => selectedColumns.includes(c))
-    : selectedColumns
+  const startX    = useRef(0)
+  const startW    = useRef(0)
+  const tableRef  = useRef(null)
+  const bodyRef   = useRef(null)
 
-  const displayCols = orderedCols.length
-    ? orderedCols
-    : results.length
-      ? Object.keys(results[0]).filter(k => !k.startsWith('_'))
-      : []
+  // Measure container height
+  useEffect(() => {
+    if (!tableRef.current) return
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) setTableHeight(entry.contentRect.height - 120)
+    })
+    ro.observe(tableRef.current)
+    return () => ro.disconnect()
+  }, [])
 
-  const getLabel = (name) => {
-    const f = schema.find(s => s.name === name)
-    return f?.label || name.replace(/(_s|_i|_f|_b|_dt)$/, '').replace(/_/g, ' ')
-  }
+  // ── fieldName → label (1:1, no merging)
+  const fieldLabelMap = useMemo(() => {
+    const m = {}
+    schema.forEach(f => { if (!INTERNAL.has(f.name)) m[f.name] = f.label })
+    return m
+  }, [schema])
 
-  // Column resizing
-  const startResize = useCallback((e, col) => {
-    e.preventDefault()
-    setResizing(col)
+  // ── STRICTLY respect selectedColumns — only show what user checked
+  // Order by columnOrder if available, otherwise selectedColumns order
+  // Deduplicate by label so fields like BBB_SKU_s + BBB_SKU_i don't show twice
+  const cols = useMemo(() => {
+    // Base order: columnOrder filtered to only selected
+    const ordered = columnOrder.length
+      ? columnOrder.filter(name => selectedColumns.includes(name))
+      : [...selectedColumns]
+
+    // Filter to valid schema fields only (not internal)
+    const valid = ordered.filter(name =>
+      !INTERNAL.has(name) && schema.some(f => f.name === name)
+    )
+
+    // Build columns deduplicating by LABEL — first field wins per label
+    const seenLabels = new Set()
+    return valid
+      .map(name => ({ fieldName: name, label: fieldLabelMap[name] || name }))
+      .filter(({ label }) => {
+        if (seenLabels.has(label)) return false
+        seenLabels.add(label)
+        return true
+      })
+  }, [columnOrder, selectedColumns, schema, fieldLabelMap])
+
+  // ── getValue: try the exact fieldName first, then try sibling fields that share the same label
+  // This handles cases where BBB_SKU_s is selected but data comes back as BBB_SKU_i
+  const getValue = useCallback((row, fieldName) => {
+    // 1. Try exact field name first
+    const direct = row[fieldName]
+    if (direct != null && direct !== '') return { val: direct, field: fieldName }
+
+    // 2. Try other fields in schema that share the same label (type variants)
+    const label = fieldLabelMap[fieldName]
+    if (label) {
+      for (const f of schema) {
+        if (f.name !== fieldName && fieldLabelMap[f.name] === label) {
+          const v = row[f.name]
+          if (v != null && v !== '') return { val: v, field: f.name }
+        }
+      }
+    }
+
+    return { val: null, field: fieldName }
+  }, [schema, fieldLabelMap])
+
+  // ── Column resize (keyed by fieldName)
+  const startResize = useCallback((e, fieldName) => {
+    e.preventDefault(); e.stopPropagation()
+    setResizing(fieldName)
     startX.current = e.clientX
-    startW.current = columnWidths[col] || 140
-
-    const onMove = (ev) => {
-      const delta = ev.clientX - startX.current
-      const newW = Math.max(60, startW.current + delta)
-      setColumnWidth(col, newW)
-    }
-    const onUp = () => {
+    startW.current = columnWidths[fieldName] || 150
+    const move = ev => setColumnWidth(fieldName, Math.max(60, startW.current + ev.clientX - startX.current))
+    const up   = () => {
       setResizing(null)
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      saveColumnConfig()
+      document.removeEventListener('mousemove', move)
+      document.removeEventListener('mouseup', up)
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [columnWidths, setColumnWidth])
+    document.addEventListener('mousemove', move)
+    document.addEventListener('mouseup', up)
+  }, [columnWidths, setColumnWidth, saveColumnConfig])
 
-  // Sort handler
-  const handleSort = (col) => {
-    const current = sort.startsWith(col) ? sort : ''
-    if (!current) setSort(`${col} asc`)
-    else if (current.endsWith('asc')) setSort(`${col} desc`)
-    else setSort('score desc')
+  // ── Column drag reorder (by fieldName)
+  const handleDragStart = (e, fieldName) => {
+    setDragging(fieldName)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const handleDragOver = (e, fieldName) => {
+    e.preventDefault()
+    setDragOver(fieldName)
+  }
+  const handleDrop = (e, targetFieldName) => {
+    e.preventDefault()
+    if (!dragging || dragging === targetFieldName) { setDragging(null); setDragOver(null); return }
+    const names   = cols.map(c => c.fieldName)
+    const fromIdx = names.indexOf(dragging)
+    const toIdx   = names.indexOf(targetFieldName)
+    if (fromIdx < 0 || toIdx < 0) { setDragging(null); setDragOver(null); return }
+    names.splice(fromIdx, 1)
+    names.splice(toIdx, 0, dragging)
+    setColumnOrder(names)
+    setDragging(null); setDragOver(null)
+    setTimeout(() => saveColumnConfig(), 500)
+  }
+  const handleDragEnd = () => { setDragging(null); setDragOver(null) }
+
+  // ── Sort (by fieldName directly)
+  const handleSort = (fieldName) => {
+    if (!sort.startsWith(fieldName))  setSort(`${fieldName} asc`)
+    else if (sort.endsWith('asc'))    setSort(`${fieldName} desc`)
+    else                              setSort('score desc')
   }
 
-  const getSortIcon = (col) => {
-    if (!sort.startsWith(col)) return <ArrowUpDown size={11} style={{ opacity: .3 }} />
-    if (sort.endsWith('asc')) return <ArrowUp size={11} style={{ color: 'var(--accent)' }} />
-    return <ArrowDown size={11} style={{ color: 'var(--accent)' }} />
+  const sortIcon = (fieldName) => {
+    if (!sort.startsWith(fieldName)) return <ArrowUpDown size={10} style={{ opacity: .2 }} />
+    return sort.endsWith('asc')
+      ? <ArrowUp size={10} style={{ color: 'var(--accent)' }} />
+      : <ArrowDown size={10} style={{ color: 'var(--accent)' }} />
   }
 
-  const totalPages = Math.ceil(total / rows)
-  const pages = []
-  for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) pages.push(i)
+  // ── Virtual scrolling
+  const visibleRows = useMemo(() => {
+    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_ROWS)
+    const end   = Math.min(results.length, start + Math.ceil(tableHeight / ROW_HEIGHT) + BUFFER_ROWS * 2)
+    return { start, end, rows: results.slice(start, end), offsetTop: start * ROW_HEIGHT }
+  }, [results, scrollTop, tableHeight])
 
-  // Compare mode
-  if (compareResult) {
-    return <CompareView compareResult={compareResult} displayCols={displayCols} getLabel={getLabel} />
+  const totalPages = Math.max(1, Math.ceil(total / rows))
+
+  // ── CSV Export
+  const handleExport = () => {
+    if (!results.length) return
+    const headers = cols.map(c => c.label)
+    const csvRows = results.map(row => cols.map(c => {
+      const { val } = getValue(row, c.fieldName)
+      const v = String(val ?? '')
+      return v.includes(',') || v.includes('"') || v.includes('\n') ? `"${v.replace(/"/g, '""')}"` : v
+    }).join(','))
+    const blob = new Blob(['\uFEFF' + [headers.join(','), ...csvRows].join('\n')], { type: 'text/csv;charset=utf-8' })
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `export_${Date.now()}.csv` })
+    a.click(); URL.revokeObjectURL(a.href)
+  }
+
+  if (loading && results.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+        <Loader size={32} className="animate-spin" style={{ color: 'var(--accent)', filter: 'drop-shadow(0 0 12px rgba(0,229,255,0.5))' }} />
+        <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>Fetching records…</span>
+      </div>
+    )
+  }
+
+  if (results.length === 0 && !loading) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40 }}>
+        <HelpCircle size={44} style={{ opacity: .2, color: 'var(--accent)' }} />
+        <div style={{ textAlign: 'center' }}>
+          <h3 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>
+            {queryError ? 'Query Error' : 'No Results Found'}
+          </h3>
+          <p style={{ maxWidth: 380, lineHeight: 1.7, fontSize: 13, color: 'var(--text-muted)' }}>
+            {queryError || 'Try adjusting your filters or indexing new CSV data using the Index CSV button.'}
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div ref={tableRef} style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {loading && <div className="loading-bar" />}
+
       {/* Table */}
-      <div style={{ flex: 1, overflow: 'auto' }} ref={tableRef}>
-        {loading ? (
-          <LoadingSkeleton cols={displayCols.length || 6} />
-        ) : results.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <table style={{
-            width: '100%', borderCollapse: 'collapse',
-            fontSize: 12, tableLayout: 'fixed',
-          }}>
-            <colgroup>
-              {displayCols.map(col => (
-                <col key={col} style={{ width: columnWidths[col] || 140 }} />
-              ))}
-            </colgroup>
-            <thead>
-              <tr style={{ position: 'sticky', top: 0, zIndex: 5 }}>
-                {displayCols.map(col => (
-                  <th
-                    key={col}
+      <div ref={bodyRef} style={{ flex: 1, overflow: 'auto' }}
+        onScroll={e => setScrollTop(e.currentTarget.scrollTop)}>
+        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12, tableLayout: 'fixed' }}>
+          <thead className="table-thead">
+            <tr>
+              {cols.map(({ fieldName, label }) => {
+                const active  = sort.startsWith(fieldName)
+                const isPrice = isPriceField(fieldName) || isPriceField(label)
+                const w       = columnWidths[fieldName] || 160
+                return (
+                  <th key={fieldName}
+                    draggable
+                    onDragStart={e => handleDragStart(e, fieldName)}
+                    onDragOver={e  => handleDragOver(e, fieldName)}
+                    onDrop={e      => handleDrop(e, fieldName)}
+                    onDragEnd={handleDragEnd}
                     style={{
-                      padding: '10px 12px',
-                      background: 'var(--bg2)',
-                      borderBottom: '2px solid var(--border2)',
-                      textAlign: 'left',
-                      fontWeight: 600,
-                      color: sort.startsWith(col) ? 'var(--accent)' : 'var(--text2)',
-                      userSelect: 'none',
-                      position: 'relative',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
+                      width: w, minWidth: w, maxWidth: w,
+                      padding: '11px 14px', textAlign: 'left', fontWeight: 700, fontSize: 10,
+                      letterSpacing: '.1em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                      background: dragOver === fieldName ? 'rgba(0,229,255,0.08)' : 'var(--bg3)',
+                      borderBottom: '2px solid rgba(0,229,255,0.12)',
+                      color: active ? 'var(--accent)' : isPrice ? 'rgba(245,158,11,0.8)' : 'var(--text-muted)',
+                      userSelect: 'none', position: 'relative', cursor: 'grab',
+                      borderRight: '1px solid var(--border)',
+                      transition: 'background 0.15s, color 0.15s',
+                      opacity: dragging === fieldName ? 0.4 : 1,
                     }}
-                  >
-                    <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer' }}
-                      onClick={() => handleSort(col)}
-                    >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{getLabel(col)}</span>
-                      {getSortIcon(col)}
+                    onClick={() => handleSort(fieldName)}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
+                      <GripVertical size={10} style={{ opacity: .3, flexShrink: 0 }} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+                      {sortIcon(fieldName)}
                     </div>
                     {/* Resize handle */}
-                    <div
-                      onMouseDown={e => startResize(e, col)}
-                      style={{
-                        position: 'absolute', right: 0, top: 0, bottom: 0,
-                        width: 6, cursor: 'col-resize',
-                        background: resizing === col ? 'var(--accent)' : 'transparent',
-                      }}
-                    />
+                    <div onMouseDown={e => startResize(e, fieldName)}
+                      style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: resizing === fieldName ? 'var(--accent)' : 'transparent', zIndex: 1 }} />
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((row, ri) => (
-                <tr
-                  key={row.id || ri}
-                  style={{
-                    borderBottom: '1px solid var(--border)',
-                    background: ri % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)',
-                    transition: 'background .1s',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(108,99,255,.07)'}
-                  onMouseLeave={e => e.currentTarget.style.background = ri % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)'}
-                >
-                  {displayCols.map(col => (
-                    <td
-                      key={col}
-                      style={{
-                        padding: '8px 12px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        color: row[col] == null ? 'var(--text3)' : 'var(--text)',
-                        maxWidth: columnWidths[col] || 140,
-                      }}
-                      title={String(row[col] ?? '')}
-                    >
-                      <CellValue value={row[col]} col={col} />
-                    </td>
-                  ))}
+                )
+              })}
+            </tr>
+          </thead>
+
+          {/* Virtual scrolling body */}
+          <tbody>
+            {/* Spacer top */}
+            {visibleRows.offsetTop > 0 && (
+              <tr><td colSpan={cols.length} style={{ height: visibleRows.offsetTop, padding: 0, border: 'none' }} /></tr>
+            )}
+
+            {visibleRows.rows.map((row, ri) => {
+              const absIdx = visibleRows.start + ri
+              return (
+                <tr key={absIdx} className={absIdx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} style={{ height: ROW_HEIGHT }}>
+                  {cols.map(({ fieldName, label }) => {
+                    const { val, field } = getValue(row, fieldName)
+                    const w = columnWidths[fieldName] || 160
+                    return (
+                      <td key={fieldName} style={{
+                        padding: '0 14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        width: w, maxWidth: w, height: ROW_HEIGHT,
+                        borderBottom: '1px solid var(--border)',
+                        borderRight: '1px solid rgba(255,255,255,0.025)',
+                      }} title={val != null ? String(val) : ''}>
+                        <Cell value={val} field={field} label={label} />
+                      </td>
+                    )
+                  })}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+              )
+            })}
+
+            {/* Spacer bottom */}
+            {(() => {
+              const bottomSpace = (results.length - visibleRows.end) * ROW_HEIGHT
+              return bottomSpace > 0
+                ? <tr><td colSpan={cols.length} style={{ height: bottomSpace, padding: 0, border: 'none' }} /></tr>
+                : null
+            })()}
+          </tbody>
+        </table>
       </div>
 
       {/* Pagination */}
-      {!loading && total > rows && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 20px',
-          borderTop: '1px solid var(--border)',
-          background: 'var(--bg2)',
-          flexShrink: 0,
-        }}>
-          <span style={{ fontSize: 12, color: 'var(--text2)' }}>
-            Showing {((page - 1) * rows + 1).toLocaleString()}–{Math.min(page * rows, total).toLocaleString()} of {total.toLocaleString()}
-          </span>
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <button
-              className="btn btn-icon btn-sm"
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={page === 1}
-            >
-              <ChevronLeft size={14} />
-            </button>
-            {pages.map(p => (
-              <button
-                key={p}
-                className="btn btn-sm"
-                onClick={() => setPage(p)}
-                style={p === page ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: '#fff' } : {}}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              className="btn btn-icon btn-sm"
-              onClick={() => setPage(Math.min(totalPages, page + 1))}
-              disabled={page === totalPages}
-            >
-              <ChevronRight size={14} />
-            </button>
-          </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '9px 18px', borderTop: '1px solid var(--border)',
+        background: 'var(--bg2)', flexShrink: 0, gap: 12,
+      }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+          {((page - 1) * rows + 1).toLocaleString()}–{Math.min(page * rows, total).toLocaleString()}
+          <span style={{ color: 'var(--text-dim)', margin: '0 4px' }}>of</span>
+          <strong style={{ color: 'var(--accent)' }}>{total.toLocaleString()}</strong>
+        </span>
+
+        {/* Export button */}
+        <button className="btn btn-sm" onClick={handleExport} style={{ gap: 5 }}>
+          <Download size={12} /> Export CSV
+        </button>
+
+        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn btn-sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} style={{ gap: 4 }}>
+            <ChevronLeft size={13} /> Prev
+          </button>
+
+          {(() => {
+            const pages = []; const delta = 2
+            const start = Math.max(1, page - delta); const end = Math.min(totalPages, page + delta)
+            if (start > 1) { pages.push(1); if (start > 2) pages.push('...') }
+            for (let n = start; n <= end; n++) pages.push(n)
+            if (end < totalPages) { if (end < totalPages - 1) pages.push('...'); pages.push(totalPages) }
+            return pages.map((n, i) =>
+              n === '...'
+                ? <span key={`e${i}`} style={{ color: 'var(--text-dim)', fontSize: 12, padding: '0 4px', fontFamily: 'var(--font-mono)' }}>…</span>
+                : <button key={n} onClick={() => setPage(n)} className={`pagination-btn ${page === n ? 'active' : ''}`}>{n}</button>
+            )
+          })()}
+
+          <button className="btn btn-sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} style={{ gap: 4 }}>
+            Next <ChevronRight size={13} />
+          </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }
 
-function CellValue({ value, col }) {
-  if (value == null) return <span style={{ color: 'var(--text3)', fontStyle: 'italic' }}>—</span>
-  if (typeof value === 'boolean') {
-    return (
-      <span className={`badge ${value ? 'badge-success' : 'badge-error'}`}>
-        {value ? 'true' : 'false'}
+// ── Cell renderer ─────────────────────────────────────────────────────────────
+function Cell({ value, field, label }) {
+  if (value == null || value === '')
+    return <span style={{ opacity: .2, fontStyle: 'italic', fontSize: 11, fontFamily: 'var(--font-mono)' }}>—</span>
+
+  if (typeof value === 'boolean')
+    return value ? <span className="badge badge-success">True</span> : <span className="badge badge-error">False</span>
+
+  if (field?.endsWith('_dt') || (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)))
+    return <span style={{ color: 'var(--accent2)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>{new Date(value).toLocaleDateString()}</span>
+
+  if (isStockField(field || label)) {
+    const v = String(value).toLowerCase().trim()
+    if (v === 'in stock') return <span className="badge badge-success">In Stock</span>
+    if (v === 'out of stock') return <span className="badge badge-error">Out of Stock</span>
+    return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{String(value)}</span>
+  }
+
+  if (isPriceField(field || label)) {
+    const numVal = typeof value === 'number' ? value : parseFloat(value)
+    if (!isNaN(numVal)) return (
+      <span style={{ color: 'var(--amber)', fontWeight: 800, fontFamily: 'var(--font-mono)', fontSize: 12, textShadow: '0 0 6px rgba(245,158,11,0.3)' }}>
+        {numVal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </span>
     )
   }
-  if (col.endsWith('_dt') || (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/))) {
-    return <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text2)' }}>
-      {new Date(value).toLocaleDateString()}
-    </span>
+
+  if (field?.endsWith('_f') || field?.endsWith('_i') || typeof value === 'number') {
+    const numVal = typeof value === 'number' ? value : parseFloat(value)
+    if (!isNaN(numVal)) return (
+      <span style={{ color: 'var(--amber)', fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: 12 }}>
+        {numVal.toLocaleString()}
+      </span>
+    )
   }
-  if (typeof value === 'number') {
-    return <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent3)' }}>
-      {typeof value === 'float' ? value.toFixed(2) : value.toLocaleString()}
-    </span>
+
+  if (typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))) {
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(value))
+      return <img src={value} alt="" style={{ height: 26, borderRadius: 4, border: '1px solid var(--border)' }} onError={e => e.target.style.display = 'none'} />
+    return (
+      <a href={value} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+        <ExternalLink size={10} /> Link
+      </a>
+    )
   }
-  return <span>{String(value)}</span>
-}
 
-function CompareView({ compareResult, displayCols, getLabel }) {
-  const { current, compare, difference } = compareResult
-  const pct = difference?.percentage
-  const pctColor = pct > 0 ? 'var(--success)' : pct < 0 ? 'var(--error)' : 'var(--text2)'
-
-  return (
-    <div style={{ overflow: 'auto', height: '100%' }}>
-      {/* Summary Banner */}
-      <div style={{
-        display: 'flex', gap: 16, padding: '14px 20px',
-        background: 'var(--bg3)', borderBottom: '1px solid var(--border)',
-      }}>
-        <StatCard label="Current Period" value={current.total.toLocaleString()} color="var(--accent)" />
-        <StatCard label="Compare Period" value={compare.total.toLocaleString()} color="var(--text2)" />
-        <StatCard
-          label="Change"
-          value={`${pct > 0 ? '+' : ''}${pct ?? '—'}%`}
-          sub={`${difference.absolute > 0 ? '+' : ''}${difference.absolute} records`}
-          color={pctColor}
-        />
-      </div>
-
-      {/* Side by side tables */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)' }}>
-        {[
-          { label: 'Current Period', docs: current.docs, accent: 'var(--accent)' },
-          { label: 'Compare Period', docs: compare.docs, accent: 'var(--text2)' },
-        ].map(({ label, docs, accent }) => (
-          <div key={label} style={{ background: 'var(--bg)', overflow: 'auto' }}>
-            <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', fontSize: 12, fontWeight: 600, color: accent }}>
-              {label}
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
-                <tr>
-                  {displayCols.slice(0, 4).map(col => (
-                    <th key={col} style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text2)', fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-                      {getLabel(col)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {docs.map((row, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                    {displayCols.slice(0, 4).map(col => (
-                      <td key={col} style={{ padding: '7px 12px', color: 'var(--text)' }}>
-                        {row[col] ?? '—'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function StatCard({ label, value, sub, color }) {
-  return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', minWidth: 140 }}>
-      <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color, fontFamily: 'var(--font-mono)' }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{sub}</div>}
-    </div>
-  )
-}
-
-function LoadingSkeleton({ cols }) {
-  return (
-    <div style={{ padding: '0 0' }}>
-      {[...Array(8)].map((_, i) => (
-        <div key={i} style={{
-          display: 'flex', gap: 1,
-          borderBottom: '1px solid var(--border)',
-          padding: '10px 12px',
-          opacity: 1 - i * 0.1,
-        }}>
-          {[...Array(cols)].map((_, j) => (
-            <div key={j} style={{
-              flex: 1, height: 14,
-              background: 'var(--bg3)',
-              borderRadius: 4,
-              animation: 'pulse 1.5s ease infinite',
-              animationDelay: `${j * 0.05}s`,
-            }} />
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 12, color: 'var(--text3)' }}>
-      <div style={{ fontSize: 40 }}>◈</div>
-      <div style={{ fontSize: 14, fontWeight: 600 }}>No results found</div>
-      <div style={{ fontSize: 12 }}>Try adjusting your filters or indexing some CSV files</div>
-    </div>
-  )
+  return <span style={{ color: 'var(--text)' }}>{String(value)}</span>
 }

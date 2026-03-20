@@ -1,0 +1,32 @@
+{
+    "report_id": "default",
+    "user_id": "default",
+    "config": {
+        "selected": [
+            "AF_Name_s",
+            "AF_PRICE_f",
+            "AF_SKU_s",
+            "Brand_Name_s",
+            "Date_s",
+            "Last_Price_Change_s",
+            "MAP_Violation_Date_Time_s",
+            "MAP_Violation_Screenshot_Date_Time_s",
+            "MAP_Violation_Screenshot_s",
+            "MAP_Violation_s"
+        ],
+        "order": [
+            "AF_Name_s",
+            "AF_SKU_s",
+            "AF_PRICE_f",
+            "Brand_Name_s",
+            "Date_s",
+            "Last_Price_Change_s",
+            "MAP_Violation_Date_Time_s",
+            "MAP_Violation_Screenshot_Date_Time_s",
+            "MAP_Violation_Screenshot_s",
+            "MAP_Violation_s"
+        ],
+        "widths": []
+    },
+    "updated_at": "2026-03-20T03:31:53+00:00"
+}

@@ -1,0 +1,34 @@
+{
+    "report_id": "ELM.csv",
+    "user_id": "default",
+    "config": {
+        "selected": [
+            "Brand_Name_s",
+            "Date_s",
+            "ELM_Name_s",
+            "ELM_PRICE_i",
+            "ELM_SKU_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Quantity_i",
+            "Stock_s",
+            "Product_Name_s"
+        ],
+        "order": [
+            "Brand_Name_s",
+            "Date_s",
+            "ELM_Name_s",
+            "ELM_PRICE_i",
+            "ELM_SKU_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "Stock_s"
+        ],
+        "widths": {
+            "Date_s": 327
+        }
+    },
+    "updated_at": "2026-03-20T03:33:30+00:00"
+}
