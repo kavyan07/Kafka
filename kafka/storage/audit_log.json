@@ -1,0 +1,754 @@
+[
+    {
+        "id": "audit_69bcc8748b2bc1.99316597",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:24+00:00"
+    },
+    {
+        "id": "audit_69bcc870e8c620.97990581",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:20+00:00"
+    },
+    {
+        "id": "audit_69bcc86cb8ddc6.88590877",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:16+00:00"
+    },
+    {
+        "id": "audit_69bcc86acb2eb2.62854889",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:14+00:00"
+    },
+    {
+        "id": "audit_69bcc86915ae56.78264206",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:13+00:00"
+    },
+    {
+        "id": "audit_69bcc8659e8073.84172858",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:09+00:00"
+    },
+    {
+        "id": "audit_69bcc85e321280.48580010",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:09:02+00:00"
+    },
+    {
+        "id": "audit_69bcc850c872c4.84346874",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:48+00:00"
+    },
+    {
+        "id": "audit_69bcc84dd48617.02773780",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:45+00:00"
+    },
+    {
+        "id": "audit_69bcc84c41d800.19560890",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:44+00:00"
+    },
+    {
+        "id": "audit_69bcc84ad1cc79.38725132",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:42+00:00"
+    },
+    {
+        "id": "audit_69bcc848999a66.63390903",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:40+00:00"
+    },
+    {
+        "id": "audit_69bcc845ca0845.42302756",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:37+00:00"
+    },
+    {
+        "id": "audit_69bcc844f2b0e9.51060022",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:36+00:00"
+    },
+    {
+        "id": "audit_69bcc8439f08b3.64044061",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:08:35+00:00"
+    },
+    {
+        "id": "audit_69bcc80c9d3642.28652546",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:07:40+00:00"
+    },
+    {
+        "id": "audit_69bcc804912937.63726277",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:07:32+00:00"
+    },
+    {
+        "id": "audit_69bcc8005fb536.04725129",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:07:28+00:00"
+    },
+    {
+        "id": "audit_69bcc7fdd17666.52962291",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "save_view",
+        "path": "\/views",
+        "detail": {
+            "file": null,
+            "name": "k",
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:07:25+00:00"
+    },
+    {
+        "id": "audit_69bcc7df6e8758.21426132",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "3 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:06:55+00:00"
+    },
+    {
+        "id": "audit_69bcc7a6c0a673.20160178",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "2 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:58+00:00"
+    },
+    {
+        "id": "audit_69bcc783d85d95.80410924",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "1 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:23+00:00"
+    },
+    {
+        "id": "audit_69bcc77fba0000.90284682",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:19+00:00"
+    },
+    {
+        "id": "audit_69bcc77fad7069.15502761",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:19+00:00"
+    },
+    {
+        "id": "audit_69bcc7781e5ce3.93794034",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:12+00:00"
+    },
+    {
+        "id": "audit_69bcc7778e1645.66821170",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:11+00:00"
+    },
+    {
+        "id": "audit_69bcc7775d5752.23876528",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:11+00:00"
+    },
+    {
+        "id": "audit_69bcc777314038.15724418",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:11+00:00"
+    },
+    {
+        "id": "audit_69bcc7766c84a4.13158115",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:10+00:00"
+    },
+    {
+        "id": "audit_69bcc76fc2ba93.05095430",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:05:03+00:00"
+    },
+    {
+        "id": "audit_69bcc74750cc10.55559796",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:23+00:00"
+    },
+    {
+        "id": "audit_69bcc74740bcc1.01959644",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:23+00:00"
+    },
+    {
+        "id": "audit_69bcc73dace2f4.88204123",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:13+00:00"
+    },
+    {
+        "id": "audit_69bcc73a70f745.63905084",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:10+00:00"
+    },
+    {
+        "id": "audit_69bcc73a39caa4.49782691",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:10+00:00"
+    },
+    {
+        "id": "audit_69bcc739528594.26062016",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:04:09+00:00"
+    },
+    {
+        "id": "audit_69bcc7281d0d36.65718757",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:03:52+00:00"
+    },
+    {
+        "id": "audit_69bcc6f9b52a59.85746836",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:03:05+00:00"
+    },
+    {
+        "id": "audit_69bcc6e90a17f4.97405441",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:02:49+00:00"
+    },
+    {
+        "id": "audit_69bcc6e7dda3c8.23108175",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:02:47+00:00"
+    },
+    {
+        "id": "audit_69bcc6cc7781b1.55060901",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "schedule",
+        "path": "\/schedules",
+        "detail": {
+            "file": null,
+            "name": "lasjka",
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:02:20+00:00"
+    },
+    {
+        "id": "audit_69bcc6a64f42a3.02672686",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:01:42+00:00"
+    },
+    {
+        "id": "audit_69bcc6a635c0b0.08341433",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:01:42+00:00"
+    },
+    {
+        "id": "audit_69bcc69d89a811.38542295",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:01:33+00:00"
+    },
+    {
+        "id": "audit_69bcc69d6dc497.38217897",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T04:01:33+00:00"
+    },
+    {
+        "id": "audit_69bcc614439341.49785228",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T03:59:16+00:00"
+    },
+    {
+        "id": "audit_69bcc61433d653.25356965",
+        "user_id": "default",
+        "user_name": "Default User",
+        "user_role": "admin",
+        "action": "query",
+        "path": "\/query",
+        "detail": {
+            "file": null,
+            "name": null,
+            "filters": "0 filters"
+        },
+        "ip": "172.18.0.10",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/146.0.0.0 Sa",
+        "created_at": "2026-03-20T03:59:16+00:00"
+    }
+]

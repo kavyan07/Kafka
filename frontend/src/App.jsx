@@ -1,23 +1,27 @@
 import React, { useEffect } from 'react'
 import { useStore } from './store/index'
-import Sidebar    from './components/Sidebar'
-import TopBar     from './components/TopBar'
-import FilterBar  from './components/FilterBar'
-import DataTable  from './components/DataTable'
-import ChartPanel from './components/ChartPanel'
-import SavedViews from './components/SavedViews'
-import StatusBar  from './components/StatusBar'
+import Sidebar       from './components/Sidebar'
+import TopBar        from './components/TopBar'
+import FilterBar     from './components/FilterBar'
+import DataTable     from './components/DataTable'
+import ChartPanel    from './components/ChartPanel'
+import SavedViews    from './components/SavedViews'
+import StatusBar     from './components/StatusBar'
+import AuditLog      from './components/AuditLog'
+import SchedulePanel from './components/SchedulePanel'
 import './App.css'
 import './index.css'
 
 export default function App() {
-  const { fetchSchema, fetchStats, fetchViews, query, activeTab, sidebarOpen } = useStore()
+  const { fetchSchema, fetchStats, fetchViews, query, activeTab, sidebarOpen, fetchCurrentUser, fetchSchedules } = useStore()
 
   useEffect(() => {
     ;(async () => {
       await fetchSchema()
       await fetchStats()
       fetchViews()
+      fetchCurrentUser()
+      fetchSchedules()
       query()
     })()
   }, [])
@@ -45,7 +49,7 @@ export default function App() {
           <div>
             <div className="logo-text">DataLens</div>
             <div style={{ fontSize: 9, color: 'var(--text-dim)', fontFamily: 'var(--font-mono)', letterSpacing: '.08em', textTransform: 'uppercase', marginTop: 1 }}>
-              Reporting v6
+              Reporting v8
             </div>
           </div>
         </div>
@@ -66,6 +70,8 @@ export default function App() {
 
       {/* ── Drawers ────────────────────────────────── */}
       <SavedViews />
+      <AuditLog />
+      <SchedulePanel />
     </div>
   )
 }

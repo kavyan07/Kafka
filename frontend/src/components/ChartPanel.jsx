@@ -103,6 +103,32 @@ export default function ChartPanel() {
     a.href = url; a.download = `lens_chart_${Date.now()}.svg`; a.click(); URL.revokeObjectURL(url)
   }
 
+  const exportPNG = () => {
+    const svg = chartRef.current?.querySelector('svg')
+    if (!svg) return
+    const serializer  = new XMLSerializer()
+    const svgStr      = serializer.serializeToString(svg)
+    const svgBlob     = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' })
+    const url         = URL.createObjectURL(svgBlob)
+    const img         = new Image()
+    // Wait for image to load before drawing to canvas
+    img.onload = () => {
+      const canvas  = document.createElement('canvas')
+      canvas.width  = svg.clientWidth  * 2 || 1200
+      canvas.height = svg.clientHeight * 2 || 700
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#05080f'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      canvas.toBlob(blob => {
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `lens_chart_${Date.now()}.png` })
+        a.click()
+      }, 'image/png')
+    }
+    img.src = url
+  }
+
   const stats = chartData.length ? {
     count: chartData.length,
     max:   Math.max(...chartData.map(d=>d[yKey]||0)),
@@ -171,9 +197,14 @@ export default function ChartPanel() {
 
         <div style={{ flex:1 }}/>
         
-        <button className="btn btn-sm" onClick={exportSVG} disabled={!chartData.length} style={{ border:'1px dashed var(--border-strong)' }}>
-          <Download size={14}/> Export SVG
-        </button>
+        <div style={{ display:'flex', gap:6 }}>
+          <button className="btn btn-sm" onClick={exportSVG} disabled={!chartData.length} style={{ border:'1px dashed var(--border-strong)' }}>
+            <Download size={14}/> SVG
+          </button>
+          <button className="btn btn-sm" onClick={exportPNG} disabled={!chartData.length} style={{ border:'1px dashed var(--border-strong)', borderColor:'rgba(139,92,246,0.4)', color:'var(--accent2)' }}>
+            <Download size={14}/> PNG
+          </button>
+        </div>
       </div>
 
       {/* Chart Canvas */}

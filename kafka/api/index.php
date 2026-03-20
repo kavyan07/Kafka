@@ -1,7 +1,7 @@
 <?php
 /**
- * Dynamic Reporting API - v7.1
- * Fixed: multi-filter combining, number range, OR/AND logic, Run Query
+ * Dynamic Reporting API - v8.0
+ * Enhanced: SSE, Audit Logs, Scheduled Reports, Excel Export, RBAC, Aggregations
  */
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -19,19 +19,32 @@ $uri    = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 $uri    = preg_replace('#^/api#', '', $uri);
 
+// ── RBAC: resolve current user ───────────────────────────────────────────────
+$currentUser = resolveUser();
+
 switch (true) {
-    case $uri === '/query'           && $method === 'POST':   handleQuery($solrUrl);          break;
+    case $uri === '/query'           && $method === 'POST':   logAudit($currentUser, 'query',   $uri); handleQuery($solrUrl);          break;
     case $uri === '/schema'          && $method === 'GET':    handleSchema($solrUrl);         break;
     case $uri === '/facets'          && $method === 'POST':   handleFacets($solrUrl);         break;
     case $uri === '/views'           && $method === 'GET':    handleGetViews();               break;
-    case $uri === '/views'           && $method === 'POST':   handleSaveView();               break;
-    case $uri === '/views'           && $method === 'DELETE': handleDeleteView();             break;
+    case $uri === '/views'           && $method === 'POST':   logAudit($currentUser, 'save_view', $uri); handleSaveView($currentUser);   break;
+    case $uri === '/views'           && $method === 'DELETE': logAudit($currentUser, 'delete_view', $uri); handleDeleteView();             break;
     case $uri === '/column-config'   && $method === 'POST':   handleSaveColumnConfig();       break;
     case $uri === '/column-config'   && $method === 'GET':    handleGetColumnConfig();        break;
-    case $uri === '/produce'         && $method === 'POST':   handleProduce($kafkaBroker);    break;
+    case $uri === '/produce'         && $method === 'POST':   logAudit($currentUser, 'index_csv', $uri); handleProduce($kafkaBroker);    break;
     case $uri === '/produce-status'  && $method === 'GET':    handleProduceStatus();          break;
     case $uri === '/health'          && $method === 'GET':    handleHealth($solrUrl);         break;
     case $uri === '/stats'           && $method === 'GET':    handleStats($solrUrl);          break;
+    // ── NEW ENDPOINTS ──────────────────────────────────────────────────────────
+    case $uri === '/stream'          && $method === 'GET':    handleStream();                 break;
+    case $uri === '/audit-log'       && $method === 'GET':    handleGetAuditLog();            break;
+    case $uri === '/audit-log'       && $method === 'DELETE': handleClearAuditLog();          break;
+    case $uri === '/schedules'       && $method === 'GET':    handleGetSchedules();           break;
+    case $uri === '/schedules'       && $method === 'POST':   logAudit($currentUser,'schedule',$uri); handleSaveSchedule($currentUser); break;
+    case $uri === '/schedules'       && $method === 'DELETE': handleDeleteSchedule();         break;
+    case $uri === '/export/excel'    && $method === 'POST':   handleExcelExport($solrUrl);    break;
+    case $uri === '/aggregate'       && $method === 'POST':   handleAggregate($solrUrl);      break;
+    case $uri === '/me'              && $method === 'GET':    json(['user' => $currentUser]); break;
     default: http_response_code(404); json(['error' => 'Not found', 'path' => $uri]);
 }
 
@@ -61,22 +74,49 @@ function handleSchema(string $solrUrl): void {
     $file = $_GET['file'] ?? null;
 
     if ($file) {
-        $enc  = rawurlencode($file);
-        $resp = json_decode(solrGet($solrUrl . '/select?q=source_file_s:' . $enc . '&rows=20&wt=json&indent=false'), true);
+        // Build fq param for Solr POST - handles spaces and special chars correctly
+        $params = [
+            'q'      => '*:*',
+            'fq'     => 'source_file_s:' . $file,
+            'rows'   => 20,
+            'wt'     => 'json',
+            'indent' => 'false',
+        ];
+        $resp = json_decode(solrRequest($solrUrl . '/select', $params), true);
     } else {
         $resp = json_decode(solrGet($solrUrl . '/select?q=*:*&rows=20&wt=json&indent=false'), true);
     }
     $docs = $resp['response']['docs'] ?? [];
+
+    // Assign semantic groups
+    $GROUP_RULES = [
+        ['id' => 'pricing',    'keywords' => ['price', 'cost', 'amount', 'map', 'msrp', 'fee', 'rate', 'margin']],
+        ['id' => 'product',    'keywords' => ['name', 'sku', 'type', 'brand', 'category', 'product', 'title', 'description', 'parent']],
+        ['id' => 'inventory',  'keywords' => ['stock', 'quantity', 'qty', 'inventory', 'available', 'units']],
+        ['id' => 'violation',  'keywords' => ['violation', 'map_violation', 'screenshot', 'violation_date']],
+        ['id' => 'dates',      'keywords' => ['date', 'time', 'change', 'updated', 'created', 'ingested']],
+        ['id' => 'urls',       'keywords' => ['url', 'link', 'image', 'photo', 'media', 'extracted']],
+        ['id' => 'identifiers','keywords' => ['id', 'sku', 'code', 'ref', 'number', 'num']],
+    ];
 
     $fieldMap = [];
     foreach ($docs as $doc) {
         foreach ($doc as $key => $val) {
             if (str_starts_with($key, '_') || in_array($key, $SKIP)) continue;
             if (!isset($fieldMap[$key])) {
+                $label = formatLabel($key);
+                $group = 'other';
+                $h = strtolower($key . ' ' . $label);
+                foreach ($GROUP_RULES as $rule) {
+                    foreach ($rule['keywords'] as $kw) {
+                        if (str_contains($h, $kw)) { $group = $rule['id']; break 2; }
+                    }
+                }
                 $fieldMap[$key] = [
                     'name'       => $key,
-                    'label'      => formatLabel($key),
+                    'label'      => $label,
                     'type'       => inferType($key, $val),
+                    'group'      => $group,
                     'sortable'   => true,
                     'filterable' => true,
                 ];
@@ -88,8 +128,10 @@ function handleSchema(string $solrUrl): void {
     foreach (($schemaResp['fields'] ?? []) as $f) {
         $n = $f['name'];
         if (str_starts_with($n, '_') || in_array($n, $SKIP)) continue;
-        if (!isset($fieldMap[$n]))
-            $fieldMap[$n] = ['name' => $n, 'label' => formatLabel($n), 'type' => inferType($n, null), 'sortable' => true, 'filterable' => true];
+        if (!isset($fieldMap[$n])) {
+            $label = formatLabel($n);
+            $fieldMap[$n] = ['name' => $n, 'label' => $label, 'type' => inferType($n, null), 'group' => 'other', 'sortable' => true, 'filterable' => true];
+        }
     }
 
     $sorted = array_values($fieldMap);
@@ -388,7 +430,7 @@ function handleGetViews(): void {
     json(['views' => file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : []]);
 }
 
-function handleSaveView(): void {
+function handleSaveView(array $user = []): void {
     $body = getBody();
     if (empty($body['name'])) { http_response_code(400); json(['error' => 'name required']); return; }
     $f     = __DIR__ . '/../storage/views.json';
@@ -398,12 +440,24 @@ function handleSaveView(): void {
         'id'           => 'view_' . uniqid(),
         'name'         => $body['name'],
         'columns'      => $body['columns']      ?? [],
+        'columnOrder'  => $body['columnOrder']  ?? [],
         'filters'      => $body['filters']      ?? [],
         'filterGroups' => $body['filterGroups'] ?? null,
         'sort'         => $body['sort']         ?? null,
         'columnWidths' => $body['columnWidths'] ?? [],
+        'created_by'   => $user['id'] ?? 'anonymous',
+        'shared'       => (bool)($body['shared'] ?? false),
+        'is_default'   => (bool)($body['is_default'] ?? false),
+        'version'      => 1,
         'created_at'   => date('c'),
     ];
+    // Handle default view: unset previous default for this user
+    if ($view['is_default']) {
+        $views = array_map(function($v) use ($user) {
+            if (($v['created_by'] ?? '') === ($user['id'] ?? 'anonymous')) $v['is_default'] = false;
+            return $v;
+        }, $views);
+    }
     $views[] = $view;
     file_put_contents($f, json_encode($views, JSON_PRETTY_PRINT));
     json(['success' => true, 'view' => $view]);
@@ -418,6 +472,267 @@ function handleDeleteView(): void {
     $views = array_values(array_filter($views, fn($v) => $v['id'] !== $id));
     file_put_contents($f, json_encode($views, JSON_PRETTY_PRINT));
     json(['success' => true]);
+}
+
+// ── REAL-TIME STREAM (SSE) ────────────────────────────────────────────────────
+function handleStream(): void {
+    // Server-Sent Events for real-time indexing progress
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    header('Connection: keep-alive');
+    header('X-Accel-Buffering: no');
+    // Flush headers immediately
+    if (ob_get_level()) ob_end_flush();
+    $pidFile  = '/tmp/producer.pid';
+    $logFiles = glob('/tmp/producer_*.log');
+    rsort($logFiles);
+    $logFile  = $logFiles[0] ?? null;
+    $lastSize = 0;
+    $maxTime  = 60; // max 60s stream
+    $start    = time();
+    while ((time() - $start) < $maxTime) {
+        $running = false;
+        if (file_exists($pidFile)) {
+            $pid     = trim(file_get_contents($pidFile));
+            $running = $pid && is_numeric($pid) && file_exists("/proc/$pid");
+        }
+        // Send new log lines
+        if ($logFile && file_exists($logFile)) {
+            $size = filesize($logFile);
+            if ($size > $lastSize) {
+                $content  = file_get_contents($logFile, false, null, $lastSize);
+                $lastSize = $size;
+                foreach (explode("\n", rtrim($content)) as $line) {
+                    if ($line) {
+                        echo "data: " . json_encode(['type' => 'log', 'message' => $line, 'running' => $running]) . "\n\n";
+                        flush();
+                    }
+                }
+            }
+        }
+        echo "data: " . json_encode(['type' => 'status', 'running' => $running]) . "\n\n";
+        flush();
+        if (!$running && time() - $start > 5) break; // Stop if not running after 5s warmup
+        usleep(1500000); // 1.5s poll
+    }
+    echo "data: " . json_encode(['type' => 'done']) . "\n\n";
+    flush();
+    exit;
+}
+
+// ── AUDIT LOG ────────────────────────────────────────────────────────────────
+function logAudit(array $user, string $action, string $path): void {
+    $f = __DIR__ . '/../storage/audit_log.json';
+    @mkdir(dirname($f), 0777, true);
+    $logs = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $body = getBody();
+    $entry = [
+        'id'         => uniqid('audit_', true),
+        'user_id'    => $user['id']   ?? 'anonymous',
+        'user_name'  => $user['name'] ?? 'Anonymous',
+        'user_role'  => $user['role'] ?? 'viewer',
+        'action'     => $action,
+        'path'       => $path,
+        'detail'     => [
+            'file'    => $body['file'] ?? null,
+            'name'    => $body['name'] ?? null,
+            'filters' => isset($body['filters']) ? count($body['filters']) . ' filters' : null,
+        ],
+        'ip'         => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'user_agent' => substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 100),
+        'created_at' => date('c'),
+    ];
+    array_unshift($logs, $entry);  // newest first
+    // Keep last 500 entries
+    if (count($logs) > 500) $logs = array_slice($logs, 0, 500);
+    file_put_contents($f, json_encode($logs, JSON_PRETTY_PRINT));
+}
+
+function handleGetAuditLog(): void {
+    $f    = __DIR__ . '/../storage/audit_log.json';
+    $logs = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $limit = min((int)($_GET['limit'] ?? 50), 200);
+    $page  = max(1, (int)($_GET['page'] ?? 1));
+    $total = count($logs);
+    $paged = array_slice($logs, ($page - 1) * $limit, $limit);
+    json(['entries' => $paged, 'total' => $total, 'page' => $page, 'limit' => $limit]);
+}
+
+function handleClearAuditLog(): void {
+    $f = __DIR__ . '/../storage/audit_log.json';
+    file_put_contents($f, '[]');
+    json(['success' => true]);
+}
+
+// ── RBAC ─────────────────────────────────────────────────────────────────────
+function resolveUser(): array {
+    // Simple header-based user resolution
+    // In production: verify JWT token from Authorization header
+    $userId   = $_SERVER['HTTP_X_USER_ID']   ?? ($_COOKIE['user_id'] ?? 'default');
+    $userName = $_SERVER['HTTP_X_USER_NAME'] ?? 'Default User';
+    $userRole = $_SERVER['HTTP_X_USER_ROLE'] ?? 'admin'; // default to admin for now
+    // Load stored user preferences
+    $usersFile = __DIR__ . '/../storage/users.json';
+    $users     = file_exists($usersFile) ? (json_decode(file_get_contents($usersFile), true) ?? []) : [];
+    foreach ($users as $u) {
+        if ($u['id'] === $userId) return $u;
+    }
+    return ['id' => $userId, 'name' => $userName, 'role' => $userRole, 'permissions' => ['read', 'write', 'export', 'admin']];
+}
+
+// ── SCHEDULED REPORTS ─────────────────────────────────────────────────────────
+function handleGetSchedules(): void {
+    $f = __DIR__ . '/../storage/schedules.json';
+    json(['schedules' => file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : []]);
+}
+
+function handleSaveSchedule(array $user = []): void {
+    $body = getBody();
+    if (empty($body['name'])) { http_response_code(400); json(['error' => 'name required']); return; }
+    $f         = __DIR__ . '/../storage/schedules.json';
+    @mkdir(dirname($f), 0777, true);
+    $schedules = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $sched     = [
+        'id'         => 'sched_' . uniqid(),
+        'name'       => $body['name'],
+        'frequency'  => $body['frequency']  ?? 'daily',     // daily, weekly, monthly
+        'time'       => $body['time']        ?? '08:00',
+        'email'      => $body['email']       ?? '',
+        'format'     => $body['format']      ?? 'csv',      // csv, excel
+        'view_id'    => $body['view_id']     ?? null,
+        'filters'    => $body['filters']     ?? [],
+        'columns'    => $body['columns']     ?? [],
+        'created_by' => $user['id']          ?? 'anonymous',
+        'enabled'    => true,
+        'last_run'   => null,
+        'next_run'   => computeNextRun($body['frequency'] ?? 'daily', $body['time'] ?? '08:00'),
+        'created_at' => date('c'),
+    ];
+    $schedules[] = $sched;
+    file_put_contents($f, json_encode($schedules, JSON_PRETTY_PRINT));
+    json(['success' => true, 'schedule' => $sched]);
+}
+
+function handleDeleteSchedule(): void {
+    $body = getBody();
+    $id   = $body['id'] ?? null;
+    if (!$id) { http_response_code(400); json(['error' => 'id required']); return; }
+    $f         = __DIR__ . '/../storage/schedules.json';
+    $schedules = file_exists($f) ? (json_decode(file_get_contents($f), true) ?? []) : [];
+    $schedules = array_values(array_filter($schedules, fn($s) => $s['id'] !== $id));
+    file_put_contents($f, json_encode($schedules, JSON_PRETTY_PRINT));
+    json(['success' => true]);
+}
+
+function computeNextRun(string $freq, string $time): string {
+    $now    = time();
+    $ts     = strtotime(date('Y-m-d') . ' ' . $time);
+    if ($ts <= $now) $ts += 86400;
+    if ($freq === 'weekly')  $ts += 6 * 86400;
+    if ($freq === 'monthly') $ts = strtotime('+1 month', $ts);
+    return date('c', $ts);
+}
+
+// ── EXCEL EXPORT (CSV with Excel MIME + BOM) ───────────────────────────────────
+function handleExcelExport(string $solrUrl): void {
+    $body    = getBody();
+    $filters = $body['filters'] ?? [];
+    $columns = $body['columns'] ?? [];
+    $sort    = sanitizeSort($body['sort'] ?? 'score desc');
+    // Build fqs
+    $fqs = [];
+    foreach ($filters as $f) {
+        if (($f['field'] ?? '') === 'source_file_s') {
+            $fqs[] = 'source_file_s:' . ($f['value'] ?? '');
+        } else {
+            $clause = buildSingleFilterClause($f);
+            if ($clause) $fqs[] = $clause;
+        }
+    }
+    // Fetch up to 10000 rows for export
+    $params = [
+        'q'      => '*:*',
+        'rows'   => min((int)($body['rows'] ?? 1000), 10000),
+        'start'  => 0,
+        'sort'   => $sort,
+        'fl'     => '*',
+        'wt'     => 'json',
+        'indent' => 'false',
+    ];
+    if (!empty($fqs)) $params['fq'] = $fqs;
+    $response = solrRequest($solrUrl . '/select', $params);
+    $data     = json_decode($response, true);
+    $docs     = $data['response']['docs'] ?? [];
+    // Build CSV with BOM for Excel
+    $SKIP   = ['id', '_version_', '_root_', 'source_file_s', 'ingested_at_dt', '_text_'];
+    $useCol = !empty($columns) ? $columns : (!empty($docs) ? array_keys($docs[0]) : []);
+    $useCol = array_filter($useCol, fn($c) => !in_array($c, $SKIP));
+    // Output as Excel-compatible CSV
+    header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="export_' . date('Ymd_His') . '.xls"');
+    header('Pragma: no-cache');
+    echo "\xEF\xBB\xBF"; // UTF-8 BOM
+    // Header row
+    $headerRow = array_map(fn($c) => '"' . formatLabel($c) . '"', array_values($useCol));
+    echo implode("\t", $headerRow) . "\r\n";
+    // Data rows
+    foreach ($docs as $doc) {
+        $row = [];
+        foreach ($useCol as $col) {
+            $val = $doc[$col] ?? '';
+            if (is_array($val)) $val = implode(', ', $val);
+            $val = str_replace(['"', "\t", "\r", "\n"], ['\'', ' ', ' ', ' '], (string)$val);
+            $row[] = '"' . $val . '"';
+        }
+        echo implode("\t", $row) . "\r\n";
+    }
+    exit;
+}
+
+// ── AGGREGATIONS ──────────────────────────────────────────────────────────────
+function handleAggregate(string $solrUrl): void {
+    $body    = getBody();
+    $field   = $body['field']   ?? null;
+    $metric  = $body['metric']  ?? 'count';  // count, sum, avg, min, max
+    $numField = $body['numField'] ?? null;
+    $filters = $body['filters'] ?? [];
+    if (!$field) { http_response_code(400); json(['error' => 'field required']); return; }
+    $fqs = [];
+    foreach ($filters as $f) {
+        if (($f['field'] ?? '') === 'source_file_s') {
+            $fqs[] = 'source_file_s:' . ($f['value'] ?? '');
+        } else {
+            $clause = buildSingleFilterClause($f);
+            if ($clause) $fqs[] = $clause;
+        }
+    }
+    $params = [
+        'q'              => '*:*',
+        'rows'           => 0,
+        'facet'          => 'true',
+        'facet.field'    => $field,
+        'facet.limit'    => (int)($body['limit'] ?? 20),
+        'facet.mincount' => 1,
+        'wt'             => 'json',
+    ];
+    if (!empty($fqs)) $params['fq'] = $fqs;
+    // Add stats if numeric field provided
+    if ($numField && $metric !== 'count') {
+        $params['stats'] = 'true';
+        $params['stats.field'] = $numField;
+    }
+    $response = solrRequest($solrUrl . '/select', $params);
+    $data     = json_decode($response, true);
+    $facetVals = $data['facet_counts']['facet_fields'][$field] ?? [];
+    $buckets   = [];
+    for ($i = 0; $i < count($facetVals); $i += 2) {
+        $buckets[] = ['value' => $facetVals[$i], 'count' => $facetVals[$i + 1]];
+    }
+    $stats = null;
+    if ($numField && isset($data['stats']['stats_fields'][$numField])) {
+        $stats = $data['stats']['stats_fields'][$numField];
+    }
+    json(['buckets' => $buckets, 'stats' => $stats, 'total' => count($buckets)]);
 }
 
 // ── DATE COMPARE ──────────────────────────────────────────────────────────────

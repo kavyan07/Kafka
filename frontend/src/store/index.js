@@ -9,6 +9,8 @@ const scheduleQuery = (fn, delay = 350) => {
   queryTimer = setTimeout(fn, delay)
 }
 
+let sseConnection = null
+
 export const useStore = create((set, get) => ({
 
   // ── Schema ─────────────────────────────────────────────────────────
@@ -293,12 +295,15 @@ export const useStore = create((set, get) => ({
     } catch { }
   },
 
-  saveView: async (name) => {
+  saveView: async (nameOrObj) => {
     const s = get()
+    const extra = typeof nameOrObj === 'object' ? nameOrObj : { name: nameOrObj }
     await apiFetch(`${API}/views`, {
       method: 'POST',
       body: JSON.stringify({
-        name,
+        name:         extra.name,
+        is_default:   extra.is_default || false,
+        shared:       extra.shared || false,
         columns:      s.selectedColumns,
         columnOrder:  s.columnOrder,
         columnWidths: s.columnWidths,
@@ -377,6 +382,105 @@ export const useStore = create((set, get) => ({
   sidebarOpen: true,
   setActiveTab:   (t) => set({ activeTab: t }),
   setSidebarOpen: (v) => set({ sidebarOpen: v }),
+
+  // ── SSE Real-time streaming ─────────────────────────────────────────
+  sseConnected: false, sseLogs: [], sseRunning: false,
+
+  connectSSE: () => {
+    if (sseConnection) sseConnection.close()
+    const es = new EventSource(`${API}/stream`)
+    sseConnection = es
+    set({ sseConnected: true, sseLogs: [] })
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (data.type === 'log') {
+          set(s => ({ sseLogs: [...s.sseLogs.slice(-99), data.message], sseRunning: data.running }))
+        } else if (data.type === 'status') {
+          set({ sseRunning: data.running })
+        } else if (data.type === 'done') {
+          set({ sseRunning: false, sseConnected: false })
+          es.close()
+          sseConnection = null
+          setTimeout(() => { get().query(); get().fetchStats() }, 1000)
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    es.onerror = () => {
+      set({ sseConnected: false, sseRunning: false })
+      sseConnection = null
+    }
+  },
+
+  disconnectSSE: () => {
+    if (sseConnection) { sseConnection.close(); sseConnection = null }
+    set({ sseConnected: false, sseRunning: false })
+  },
+
+  // ── Audit Log ──────────────────────────────────────────────────────
+  auditEntries: [], auditTotal: 0, showAuditLog: false,
+  setShowAuditLog: (v) => set({ showAuditLog: v }),
+  fetchAuditLog: async (page = 1) => {
+    try {
+      const data = await apiFetch(`${API}/audit-log?limit=50&page=${page}`)
+      set({ auditEntries: data.entries || [], auditTotal: data.total || 0 })
+    } catch { }
+  },
+  clearAuditLog: async () => {
+    try {
+      await apiFetch(`${API}/audit-log`, { method: 'DELETE' })
+      set({ auditEntries: [], auditTotal: 0 })
+    } catch { }
+  },
+
+  // ── Scheduled Reports ───────────────────────────────────────────────
+  schedules: [], showSchedules: false,
+  setShowSchedules: (v) => set({ showSchedules: v }),
+  fetchSchedules: async () => {
+    try {
+      const data = await apiFetch(`${API}/schedules`)
+      set({ schedules: data.schedules || [] })
+    } catch { }
+  },
+  saveSchedule: async (sched) => {
+    await apiFetch(`${API}/schedules`, { method: 'POST', body: JSON.stringify(sched) })
+    await get().fetchSchedules()
+  },
+  deleteSchedule: async (id) => {
+    await apiFetch(`${API}/schedules`, { method: 'DELETE', body: JSON.stringify({ id }) })
+    await get().fetchSchedules()
+  },
+
+  // ── Excel Export ────────────────────────────────────────────────────
+  exportExcel: async () => {
+    const s = get()
+    let activeFilters = [...s.filters]
+    if (s.selectedFile && !activeFilters.some(f => f.field === 'source_file_s')) {
+      activeFilters = [{ field: 'source_file_s', type: 'term', value: s.selectedFile, op: 'AND' }, ...activeFilters]
+    }
+    try {
+      const res = await fetch(`${API}/export/excel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: activeFilters, columns: s.selectedColumns, sort: s.sort, rows: 5000 }),
+      })
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = Object.assign(document.createElement('a'), {
+        href: url, download: `report_${new Date().toISOString().slice(0, 10)}.xls`,
+      })
+      a.click(); URL.revokeObjectURL(url)
+    } catch (e) { console.error('Excel export error:', e) }
+  },
+
+  // ── RBAC / Current User ─────────────────────────────────────────────
+  currentUser: { id: 'default', name: 'Admin User', role: 'admin' },
+  fetchCurrentUser: async () => {
+    try {
+      const data = await apiFetch(`${API}/me`)
+      set({ currentUser: data.user || {} })
+    } catch { }
+  },
 }))
 
 async function apiFetch(url, options = {}) {

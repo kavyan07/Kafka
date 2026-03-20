@@ -1,1 +1,68 @@
-[]
+[
+    {
+        "id": "view_69bcc7fdd5d75",
+        "name": "k",
+        "columns": [
+            "Brand_Name_s",
+            "CYM_Name_s",
+            "CYM_PRICE_f",
+            "CYM_SKU_i",
+            "CYM_SKU_s",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "Date_s"
+        ],
+        "columnOrder": [
+            "Brand_Name_s",
+            "CYM_PRICE_f",
+            "CYM_Name_s",
+            "CYM_SKU_i",
+            "Last_Price_Change_s",
+            "Price_f",
+            "Product_Name_s",
+            "Quantity_i",
+            "Date_s"
+        ],
+        "filters": [
+            {
+                "field": "source_file_s",
+                "type": "term",
+                "value": "CYM.csv",
+                "op": "AND"
+            },
+            {
+                "field": "CYM_PRICE_f",
+                "type": "number_range",
+                "value": "",
+                "op": "AND",
+                "min": "300",
+                "max": "400",
+                "from": "",
+                "to": ""
+            },
+            {
+                "field": "Brand_Name_s",
+                "type": "exact",
+                "value": "Glory",
+                "op": "AND",
+                "min": "",
+                "max": "",
+                "from": "",
+                "to": ""
+            }
+        ],
+        "filterGroups": null,
+        "sort": "score desc",
+        "columnWidths": {
+            "Cym Name": 199,
+            "Cym Price": 121
+        },
+        "created_by": "default",
+        "shared": false,
+        "is_default": false,
+        "version": 1,
+        "created_at": "2026-03-20T04:07:25+00:00"
+    }
+]

@@ -4,6 +4,7 @@ import {
   Menu, RefreshCw, Download, Table2, BarChart2,
   Zap, ChevronDown, X, Terminal, Play, Info,
   Database, CheckCircle, XCircle, BookMarked,
+  Activity, AlarmClock, FileSpreadsheet, User, Shield,
 } from 'lucide-react'
 
 export default function TopBar() {
@@ -14,14 +15,19 @@ export default function TopBar() {
     produceStatus, produceMessage, produceLogs,
     triggerProduce, produceError,
     setShowViews,
+    setShowAuditLog, setShowSchedules,
+    exportExcel, connectSSE, sseConnected, sseLogs, sseRunning,
+    currentUser,
   } = useStore()
 
   const [showExport,    setShowExport]    = useState(false)
   const [showLogs,      setShowLogs]      = useState(false)
   const [showIndexInfo, setShowIndexInfo] = useState(false)
+  const [showSSELogs,   setShowSSELogs]   = useState(false)
 
   /* ── CSV export ── */
   const doExport = (fmt) => {
+    if (fmt === 'excel') { exportExcel(); setShowExport(false); return }
     if (!results.length) return
     const cols = selectedColumns.length
       ? selectedColumns
@@ -118,7 +124,7 @@ export default function TopBar() {
           {[20, 50, 100, 200, 500].map(n => <option key={n} value={n}>{n} rows</option>)}
         </select>
 
-        {/* ── Saved Views Button — NEW ── */}
+        {/* ── Saved Views Button ── */}
         <button
           id="saved-views-btn"
           className="btn btn-violet"
@@ -130,12 +136,34 @@ export default function TopBar() {
           Views
         </button>
 
+        {/* ── Audit Log ── */}
+        <button
+          id="audit-log-btn"
+          className="btn"
+          onClick={() => setShowAuditLog(true)}
+          title="Audit Log — see who did what"
+          style={{ gap: 6, padding: '7px 10px' }}
+        >
+          <Activity size={13} />
+        </button>
+
+        {/* ── Schedule Reports ── */}
+        <button
+          id="schedule-btn"
+          className="btn"
+          onClick={() => setShowSchedules(true)}
+          title="Scheduled Reports"
+          style={{ gap: 6, padding: '7px 10px' }}
+        >
+          <AlarmClock size={13} />
+        </button>
+
         {/* ── Index CSV ── */}
         <div style={{ position: 'relative', display: 'flex', gap: 0 }}>
           <button
             id="index-csv-btn"
             className="btn btn-electric"
-            onClick={() => triggerProduce()}
+            onClick={() => { triggerProduce(); connectSSE() }}
             disabled={produceStatus === 'running'}
             style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0, padding: '7px 14px' }}
             title="Stream CSV files through Kafka into Solr"
@@ -185,18 +213,30 @@ export default function TopBar() {
 
         {/* Export */}
         <div style={{ position: 'relative' }}>
-          <button id="export-btn" className="btn" onClick={() => setShowExport(v => !v)} disabled={!results.length} title="Export data">
+          <button id="export-btn" className="btn" onClick={() => setShowExport(v => !v)} title="Export data">
             <Download size={13} /> <ChevronDown size={11} />
           </button>
           {showExport && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 198 }} onClick={() => setShowExport(false)} />
-              <div className="card-glass animate-fade" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', minWidth: 190, zIndex: 199, overflow: 'hidden', padding: '6px 0' }}>
-                <DropItem id="export-csv"  onClick={() => doExport('csv')}  emoji="📄" label="Export CSV" />
-                <DropItem id="export-json" onClick={() => doExport('json')} emoji="📋" label="Export JSON" />
+              <div className="card-glass animate-fade" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', minWidth: 200, zIndex: 199, overflow: 'hidden', padding: '6px 0' }}>
+                <DropItem id="export-csv"   onClick={() => doExport('csv')}   emoji="📄" label="Export CSV" disabled={!results.length} />
+                <DropItem id="export-json"  onClick={() => doExport('json')}  emoji="📋" label="Export JSON" disabled={!results.length} />
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <DropItem id="export-excel" onClick={() => doExport('excel')} emoji="📊" label="Export Excel (.xls)" />
               </div>
             </>
           )}
+        </div>
+
+        {/* User badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: 8 }}>
+          <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent2), #7c3aed)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <User size={12} color="#fff" />
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent2)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {currentUser?.name || 'Admin'}
+          </span>
         </div>
 
         {/* Refresh icon */}
@@ -233,19 +273,44 @@ export default function TopBar() {
           {produceLogs.map((l, i) => <div key={i}>{l}</div>)}
         </div>
       )}
+
+      {/* ── SSE Live log console (real-time streaming) ── */}
+      {(sseConnected || sseLogs.length > 0) && (
+        <div style={{ borderTop: '1px solid rgba(0,229,255,0.15)', background: 'rgba(0,229,255,0.03)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 18px', borderBottom: '1px solid rgba(0,229,255,0.06)' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: sseRunning ? 'var(--accent)' : '#4ade80', boxShadow: `0 0 8px ${sseRunning ? 'var(--accent)' : '#4ade80'}`, animation: sseRunning ? 'pulse 1s infinite' : 'none' }} />
+            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+              {sseRunning ? 'Live stream' : 'Stream complete'}
+            </span>
+            <span style={{ flex: 1 }} />
+            <button onClick={() => setShowSSELogs(v => !v)} className="btn btn-xs" style={{ borderColor: 'rgba(0,229,255,0.2)', color: 'var(--accent)', fontSize: 9 }}>
+              {showSSELogs ? 'Hide' : 'Show'} logs
+            </button>
+          </div>
+          {showSSELogs && sseLogs.length > 0 && (
+            <div style={{ padding: '8px 18px', fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', maxHeight: 120, overflowY: 'auto', background: 'rgba(0,0,0,0.5)' }}>
+              {sseLogs.map((l, i) => <div key={i} style={{ marginBottom: 2, opacity: i === sseLogs.length - 1 ? 1 : 0.6 }}>{l}</div>)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function DropItem({ id, onClick, emoji, label }) {
+function DropItem({ id, onClick, emoji, label, disabled = false }) {
   const [hov, setHov] = useState(false)
   return (
-    <button id={id} onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+    <button id={id} onClick={!disabled ? onClick : undefined}
+      onMouseEnter={() => !disabled && setHov(true)}
+      onMouseLeave={() => setHov(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 16px',
-        background: hov ? 'rgba(255,255,255,0.05)' : 'none', border: 'none', cursor: 'pointer',
-        color: hov ? 'var(--accent)' : 'var(--text)', fontSize: 12, fontWeight: 600, textAlign: 'left',
-        fontFamily: 'var(--font)',
+        background: hov ? 'rgba(255,255,255,0.05)' : 'none', border: 'none',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        color: disabled ? 'var(--text-dim)' : hov ? 'var(--accent)' : 'var(--text)',
+        fontSize: 12, fontWeight: 600, textAlign: 'left', fontFamily: 'var(--font)',
+        opacity: disabled ? 0.5 : 1,
       }}>
       <span style={{ fontSize: 14 }}>{emoji}</span>{label}
     </button>
